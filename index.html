@@ -232,10 +232,9 @@
     const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
     const SHEET_GID = "512966518";
 
-// 1. Basemap Definitions (100% Free & Keyless)
-const osmVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  subdomains: 'abcd',
+// 1. Fully Keyless & Open Tile Providers
+const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   maxZoom: 19
 });
 
@@ -249,16 +248,16 @@ const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/s
   maxZoom: 18
 });
 
-// 2. Initialize Map (Defaulting to Light Gray Canvas for instant reliability)
+// 2. Initialize Map (Defaulting to Esri Light Gray Canvas for high contrast)
 const map = L.map('map', { 
   zoomControl: true,
   layers: [esriGray]
 }).setView([39.8283, -98.5795], 4);
 
-// 3. Basemap Control Selector
+// 3. Basemap Selector (Top Right)
 const baseMaps = {
   "Light Gray Canvas": esriGray,
-  "OpenStreetMap (Voyager)": osmVoyager,
+  "OpenStreetMap": osmStandard,
   "Satellite Imagery": esriSatellite
 };
 L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
