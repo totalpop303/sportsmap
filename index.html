@@ -229,7 +229,10 @@
   <div id="map"></div>
 
   <script>
-    // 1. Fully Keyless Tile Providers
+    const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
+    const SHEET_GID = "512966518";
+
+    // 1. Tile Providers
     const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
@@ -245,13 +248,13 @@
       maxZoom: 18
     });
 
-    // 2. Initialize Map (Defaulting to Esri Light Gray Canvas)
+    // 2. Initialize Map
     const map = L.map('map', { 
       zoomControl: true,
       layers: [esriGray]
     }).setView([39.8283, -98.5795], 4);
 
-    // 3. Basemap Selector (Top Right)
+    // 3. Basemap Selector Control
     const baseMaps = {
       "Light Gray Canvas": esriGray,
       "OpenStreetMap": osmStandard,
@@ -614,14 +617,13 @@
     };
     dashboardControl.addTo(map);
 
-    // Native Native JSONP Endpoint Parser using Published Key
+    // Dynamic Google Sheet Handler
     window.handleGvizResponse = function(response) {
       if (!response || !response.table) {
         document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
         return;
       }
 
-      // Read column indices from GViz metadata
       const cols = response.table.cols.map((c, idx) => {
         const name = (c && (c.label || c.id || '')).trim();
         return name || String.fromCharCode(65 + idx);
@@ -709,8 +711,7 @@
     };
 
     function loadGoogleSheetData() {
-      // Direct GViz script request pointing directly to your published key (2PACX...)
-      const gvizUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vSIGZl2kR-jnoUG-m5OYdhKKiln1ySaNGlj9CC4ASsYeG0Ax1aTyOrVf_v2zQ57bd6rSQ-uosiHE-v4/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=512966518`;
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}`;
       const script = document.createElement('script');
       script.src = gvizUrl;
       script.onerror = function() {
