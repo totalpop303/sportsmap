@@ -585,12 +585,14 @@
     dashboardControl.addTo(map);
 
     function loadGoogleSheetData() {
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+      // Bypasses GViz 4-row restriction by requesting CSV directly with full SQL query parameter
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${SHEET_GID}&tq=${encodeURIComponent('SELECT *')}`;
 
       Papa.parse(csvUrl, {
         download: true,
         header: true,
         skipEmptyLines: true,
+        trimHeaders: true,
         complete: function(results) {
           if (!results || !results.data || results.data.length === 0) {
             document.getElementById('status-text').textContent = "Error loading CSV from Google Sheet.";
@@ -601,13 +603,25 @@
           const venueMap = {};
 
           rawRows.forEach(row => {
-            const league = (row['League'] || row['league'] || '').trim();
-            const metro = (row['Metro Area'] || row['metro area'] || row['Metro'] || '').trim();
-            const team = (row['Team Name'] || row['team name'] || row['Team'] || '').trim();
-            const venueName = (row['Venue Name'] || row['venue name'] || row['Venue'] || '').trim();
-            const venueCity = (row['Venue City'] || row['venue city'] || row['City'] || '').trim();
-            const lat = parseFloat(row['Latitude'] || row['latitude'] || row['Lat']);
-            const lng = parseFloat(row['Longitude'] || row['longitude'] || row['Lng'] || row['Lon']);
+            // Flexible property extraction matching any casing/spacing variations
+            const getVal = (keys) => {
+              for (let k of keys) {
+                for (let rk in row) {
+                  if (rk.trim().toLowerCase() === k.toLowerCase()) {
+                    return (row[rk] || '').toString().trim();
+                  }
+                }
+              }
+              return '';
+            };
+
+            const league = getVal(['League']);
+            const metro = getVal(['Metro Area', 'MetroArea', 'Metro']);
+            const team = getVal(['Team Name', 'TeamName', 'Team']);
+            const venueName = getVal(['Venue Name', 'VenueName', 'Venue']);
+            const venueCity = getVal(['Venue City', 'VenueCity', 'City']);
+            const lat = parseFloat(getVal(['Latitude', 'Lat']));
+            const lng = parseFloat(getVal(['Longitude', 'Lng', 'Lon']));
 
             if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
 
