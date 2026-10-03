@@ -232,13 +232,36 @@
     const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
     const SHEET_GID = "512966518";
 
-    // Initialize Map
-    const map = L.map('map', { zoomControl: true }).setView([39.8283, -98.5795], 4);
+    // 1. Basemap Definitions
+    const cartoPositron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20
+    });
 
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, TomTom',
+    const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{y}/{x}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    });
+
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
       maxZoom: 18
-    }).addTo(map);
+    });
+
+    // 2. Initialize Map
+    const map = L.map('map', { 
+      zoomControl: true,
+      layers: [cartoPositron]
+    }).setView([39.8283, -98.5795], 4);
+
+    // 3. Basemap Toggle Control
+    const baseMaps = {
+      "Clean Light (CARTO)": cartoPositron,
+      "OpenStreetMap": osmStandard,
+      "Satellite Imagery": esriSatellite
+    };
+    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
     map.createPane('metroBoundaryPane');
     map.getPane('metroBoundaryPane').style.zIndex = 350;
@@ -602,7 +625,6 @@
         return;
       }
 
-      // Read exact column headers or fall back to positional indices A-G
       const cols = response.table.cols.map((c, idx) => {
         const name = (c && (c.label || c.id || '')).trim();
         return name || String.fromCharCode(65 + idx);
@@ -623,7 +645,6 @@
         return rowObj;
       });
 
-      // Flexible property getter that searches key variations and converts numbers safely
       function getRowVal(row, possibleKeys) {
         for (let key of possibleKeys) {
           for (let rk in row) {
