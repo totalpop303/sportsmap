@@ -273,10 +273,13 @@
     // Basemap Selector Control
     const baseMaps = {
       "OpenStreetMap": osmStandard,
-      "Light Gray Canvas": esriGray,
-      "Satellite Imagery": esriSatellite
+      "Satellite Imagery": esriSatellite,
+      "Light Gray Canvas": esriGray
     };
     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+    // Track active basemap dynamically
+    let activeBasemapLayer = osmStandard;
 
     map.createPane('metroBoundaryPane');
     map.getPane('metroBoundaryPane').style.zIndex = 350;
@@ -322,6 +325,20 @@
       return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2);
     }
 
+    // Dynamic Basemap Switch based on Zoom Level
+    function updateBasemapForZoom() {
+      const currentZoom = map.getZoom();
+      let targetLayer = currentZoom <= 6 ? osmStandard : esriSatellite;
+
+      if (activeBasemapLayer !== targetLayer) {
+        if (map.hasLayer(activeBasemapLayer)) {
+          map.removeLayer(activeBasemapLayer);
+        }
+        map.addLayer(targetLayer);
+        activeBasemapLayer = targetLayer;
+      }
+    }
+
     function resetToDefaultView() {
       activeVenueKey = null;
       activeMetro = null;
@@ -336,6 +353,8 @@
 
     function updateMap() {
       if (venues.length === 0) return;
+
+      updateBasemapForZoom();
 
       const selectedLeagues = new Set(
         Array.from(document.querySelectorAll('.league-checkbox:checked')).map(cb => cb.value)
@@ -522,7 +541,6 @@
             L.DomEvent.stopPropagation(e);
             activeVenueKey = null;
 
-            // If clicking a new metro area, zoom in cleanly without showing a pop-up
             if (activeMetro !== mName) {
               activeMetro = mName;
               if (activeVenueList.length > 1) {
@@ -531,7 +549,6 @@
                 map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
               }
             } else {
-              // Second click on the already-active metro area opens the summary pop-up
               marker.openPopup();
             }
           };
@@ -805,6 +822,11 @@
       } else if (e.target.id === 'btn-reset-view') {
         resetToDefaultView();
       }
+    });
+
+    // Track user manually changing basemap via Layer Control
+    map.on('baselayerchange', (e) => {
+      activeBasemapLayer = e.layer;
     });
 
     map.on('popupclose', () => {
