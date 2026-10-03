@@ -6,6 +6,7 @@
   <title>Pro Sports by Metro Area</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     #map { height: 100vh; width: 100vw; }
@@ -583,68 +584,60 @@
     };
     dashboardControl.addTo(map);
 
-    window.handleGvizResponse = function(response) {
-      if (!response || !response.table) {
-        document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
-        return;
-      }
-
-      const cols = response.table.cols.map(c => (c ? (c.label || c.id || '') : '').trim());
-      const venueMap = {};
-
-      response.table.rows.forEach(r => {
-        if (!r || !r.c) return;
-        
-        let rowObj = {};
-        r.c.forEach((cell, idx) => {
-          const colName = cols[idx];
-          if (colName) {
-            rowObj[colName] = cell ? (cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : '') : '';
-          }
-        });
-
-        const league = rowObj['League'] || rowObj['league'] || '';
-        const metro = rowObj['Metro Area'] || rowObj['metro area'] || rowObj['Metro'] || '';
-        const team = rowObj['Team Name'] || rowObj['team name'] || rowObj['Team'] || '';
-        const venueName = rowObj['Venue Name'] || rowObj['venue name'] || rowObj['Venue'] || '';
-        const venueCity = rowObj['Venue City'] || rowObj['venue city'] || rowObj['City'] || '';
-        const lat = parseFloat(rowObj['Latitude'] || rowObj['latitude'] || rowObj['Lat']);
-        const lng = parseFloat(rowObj['Longitude'] || rowObj['longitude'] || rowObj['Lng'] || rowObj['Lon']);
-
-        if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
-
-        const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
-        if (!venueMap[venueKey]) {
-          venueMap[venueKey] = {
-            venue: venueName,
-            city: venueCity,
-            metro: metro,
-            coords: [lat, lng],
-            teams: []
-          };
-        }
-        venueMap[venueKey].teams.push({ league: league, name: team });
-      });
-
-      venues = Object.values(venueMap);
-
-      const banner = document.getElementById('status-banner');
-      document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
-      setTimeout(() => {
-        banner.style.opacity = '0';
-      }, 2500);
-
-      updateMap();
-    };
-
     function loadGoogleSheetData() {
-      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}&tq=${encodeURIComponent('select *')}`;
-      const script = document.createElement('script');
-      script.src = gvizUrl;
-      script.onerror = function() {
-        document.getElementById('status-text').textContent = "Failed to reach Google Sheet. Ensure 'Anyone with the link' is set to Viewer.";
-      };
-      document.body.appendChild(script);
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+
+      Papa.parse(csvUrl, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          if (!results || !results.data || results.data.length === 0) {
+            document.getElementById('status-text').textContent = "Error loading CSV from Google Sheet.";
+            return;
+          }
+
+          const rawRows = results.data;
+          const venueMap = {};
+
+          rawRows.forEach(row => {
+            const league = (row['League'] || row['league'] || '').trim();
+            const metro = (row['Metro Area'] || row['metro area'] || row['Metro'] || '').trim();
+            const team = (row['Team Name'] || row['team name'] || row['Team'] || '').trim();
+            const venueName = (row['Venue Name'] || row['venue name'] || row['Venue'] || '').trim();
+            const venueCity = (row['Venue City'] || row['venue city'] || row['City'] || '').trim();
+            const lat = parseFloat(row['Latitude'] || row['latitude'] || row['Lat']);
+            const lng = parseFloat(row['Longitude'] || row['longitude'] || row['Lng'] || row['Lon']);
+
+            if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
+
+            const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
+            if (!venueMap[venueKey]) {
+              venueMap[venueKey] = {
+                venue: venueName,
+                city: venueCity,
+                metro: metro,
+                coords: [lat, lng],
+                teams: []
+              };
+            }
+            venueMap[venueKey].teams.push({ league: league, name: team });
+          });
+
+          venues = Object.values(venueMap);
+
+          const banner = document.getElementById('status-banner');
+          document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
+          setTimeout(() => {
+            banner.style.opacity = '0';
+          }, 2500);
+
+          updateMap();
+        },
+        error: function(err) {
+          document.getElementById('status-text').textContent = "Failed to fetch CSV. Check sharing settings.";
+        }
+      });
     }
 
     document.addEventListener('change', function(e) {
