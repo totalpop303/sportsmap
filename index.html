@@ -79,7 +79,7 @@
 
     /* Filter Card */
     .filter-card {
-      min-width: 160px;
+      min-width: 175px;
       max-height: 45vh;
       overflow-y: auto;
     }
@@ -98,7 +98,7 @@
       background: #f1f5f9;
       border: 1px solid #cbd5e1;
       border-radius: 4px;
-      padding: 3px 8px;
+      padding: 3px 7px;
       font-size: 10px;
       font-weight: 600;
       cursor: pointer;
@@ -111,6 +111,8 @@
       background: #0284c7;
       color: #ffffff;
       border: 1px solid #0369a1;
+      width: 100%;
+      margin-top: 4px;
     }
     .btn-reset:hover { background: #0369a1; color: #ffffff; }
 
@@ -197,7 +199,8 @@
       font-weight: 600;
       padding: 2px 6px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      pointer-events: none;
+      cursor: pointer;
+      pointer-events: auto !important;
       white-space: nowrap;
     }
 
@@ -232,7 +235,7 @@
     const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
     const SHEET_GID = "512966518";
 
-    // 1. Tile Providers
+    // Tile Providers
     const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
@@ -248,13 +251,13 @@
       maxZoom: 18
     });
 
-    // 2. Initialize Map
+    // Initialize Map
     const map = L.map('map', { 
       zoomControl: true,
       layers: [esriGray]
     }).setView([39.8283, -98.5795], 4);
 
-    // 3. Basemap Selector Control
+    // Basemap Selector Control
     const baseMaps = {
       "Light Gray Canvas": esriGray,
       "OpenStreetMap": osmStandard,
@@ -378,6 +381,34 @@
           t.name.replace(/^(Atlanta|Austin|Baltimore|Boston|Buffalo|Calgary|Charlotte|Chicago|Cincinnati|Cleveland|Columbus|Dallas|Denver|Detroit|Edmonton|Houston|Indiana|Indianapolis|Jacksonville|Kansas City|Las Vegas|Los Angeles|Louisville|Memphis|Miami|Milwaukee|Minnesota|Montreal|Nashville|New England|New Orleans|New York|NJ\/NY|Oklahoma City|Orlando|Ottawa|Philadelphia|Phoenix|Pittsburgh|Portland|Raleigh|North Carolina|Sacramento|Real|Utah|San Antonio|San Diego|San Francisco|Golden State|San Jose|Bay|Seattle|St Louis|Tampa Bay|Toronto|Vancouver|Washington|Winnipeg)\s+/i, '')
         ).join(', ');
 
+        const teamRows = activeTeams.map(t => 
+          `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`
+        ).join('');
+
+        const wikiSlug = encodeURIComponent(v.venue.replace(/ /g, '_'));
+        const wikiUrl = `https://en.wikipedia.org/wiki/${wikiSlug}`;
+
+        const popupMarkup = `
+          <div class="popup-title">${v.venue}</div>
+          <div class="popup-subtitle">${v.city} &bull; Metro: ${v.metro}</div>
+          ${teamRows}
+          <a href="${wikiUrl}" target="_blank" rel="noopener noreferrer" class="wiki-link">
+            Wikipedia: ${v.venue} &rarr;
+          </a>
+        `;
+
+        marker.bindPopup(popupMarkup);
+
+        // Zoom into venue on click
+        const handleVenueZoom = function(e) {
+          L.DomEvent.stopPropagation(e);
+          const targetZoom = Math.max(map.getZoom(), 15);
+          map.flyTo(v.coords, targetZoom, { duration: 0.8 });
+          marker.openPopup();
+        };
+
+        marker.on('click', handleVenueZoom);
+
         if (!isOverview) {
           const pt = map.latLngToLayerPoint(v.coords);
           const estWidth = Math.max(v.venue.length, shortTeamSummary.length) * 6.8 + 16;
@@ -411,26 +442,17 @@
               permanent: true,
               direction: chosen.dir,
               className: 'venue-tooltip',
-              offset: chosen.offset
+              offset: chosen.offset,
+              interactive: true
+            });
+
+            marker.on('tooltipopen', function(tt) {
+              if (tt.tooltip && tt.tooltip._container) {
+                tt.tooltip._container.addEventListener('click', handleVenueZoom);
+              }
             });
           }
         }
-
-        const teamRows = activeTeams.map(t => 
-          `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`
-        ).join('');
-
-        const wikiSlug = encodeURIComponent(v.venue.replace(/ /g, '_'));
-        const wikiUrl = `https://en.wikipedia.org/wiki/${wikiSlug}`;
-
-        marker.bindPopup(`
-          <div class="popup-title">${v.venue}</div>
-          <div class="popup-subtitle">${v.city} &bull; Metro: ${v.metro}</div>
-          ${teamRows}
-          <a href="${wikiUrl}" target="_blank" rel="noopener noreferrer" class="wiki-link">
-            Wikipedia: ${v.venue} &rarr;
-          </a>
-        `);
       });
 
       // Plot Metros
@@ -605,10 +627,11 @@
         <div class="card-title">Filter Leagues</div>
         <div class="filter-actions">
           <button class="btn-action" id="btn-select-all">All</button>
-          <button class="btn-action" id="btn-clear-all">Clear</button>
-          <button class="btn-action btn-reset" id="btn-reset-view">Reset View</button>
+          <button class="btn-action" id="btn-big-four">Big 4</button>
+          <button class="btn-action" id="btn-select-none">None</button>
         </div>
         <div class="league-grid">${checkboxesHtml}</div>
+        <button class="btn-action btn-reset" id="btn-reset-view">Reset Zoom</button>
       `;
 
       L.DomEvent.disableClickPropagation(container);
@@ -617,7 +640,7 @@
     };
     dashboardControl.addTo(map);
 
-    // Dynamic Google Sheet Handler
+    // Native JSONP Endpoint Parser
     window.handleGvizResponse = function(response) {
       if (!response || !response.table) {
         document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
@@ -732,7 +755,13 @@
       if (e.target.id === 'btn-select-all') {
         document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = true);
         updateMap();
-      } else if (e.target.id === 'btn-clear-all') {
+      } else if (e.target.id === 'btn-big-four') {
+        const bigFour = new Set(['NFL', 'MLB', 'NBA', 'NHL']);
+        document.querySelectorAll('.league-checkbox').forEach(cb => {
+          cb.checked = bigFour.has(cb.value);
+        });
+        updateMap();
+      } else if (e.target.id === 'btn-select-none') {
         document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = false);
         updateMap();
       } else if (e.target.id === 'btn-reset-view') {
