@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive Pro Sports Map (Live Google Sheets Sync)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #map { height: 100vh; width: 100vw; }
+
+    /* Sync Indicator Status Banner */
+    #status-banner {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.88);
+      color: #f8fafc;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 10000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+    }
+
+    /* Unified Bottom-Left Dashboard */
+    .dashboard-container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .dashboard-card {
+      background: rgba(255, 255, 255, 0.96);
+      padding: 12px 14px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      backdrop-filter: blur(4px);
+      box-sizing: border-box;
+    }
+
+    /* Filter Card */
+    .filter-card { min-width: 165px; }
+    .card-title {
+      font-weight: 800;
+      font-size: 12px;
+      margin-bottom: 6px;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1.5px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    .filter-actions { display: flex; gap: 5px; margin-bottom: 8px; }
+    .btn-action {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #334155;
+      transition: all 0.15s ease;
+    }
+    .btn-action:hover { background: #e2e8f0; color: #0f172a; }
+    .league-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 4px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .league-option input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: #0284c7;
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Legend Card */
+    .legend-card { min-width: 195px; font-size: 12px; line-height: 1.45; }
+    .legend-subtitle {
+      font-weight: 600;
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 5px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin: 2.5px 0; }
+    .legend-swatch {
+      width: 20px;
+      height: 11px;
+      border-radius: 3px;
+      display: inline-block;
+      border: 1px solid rgba(0,0,0,0.2);
+    }
+    .legend-circle { border-radius: 50%; display: inline-block; }
+
+    /* National Zoom Metro Box Marker */
+    .metro-box-icon { background: transparent; border: none; }
+    .metro-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 3px 8px;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      transition: transform 0.15s ease, background 0.2s ease;
+    }
+    .metro-box:hover {
+      transform: translate(-50%, -50%) scale(1.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 9999 !important;
+    }
+
+    /* Zoomed-In Offset Header Badge */
+    .metro-header-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 3px 8px;
+      white-space: nowrap;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.22);
+      cursor: pointer;
+      transform: translate(-50%, -100%);
+      border: 1px solid rgba(255,255,255,0.8);
+      opacity: 0.95;
+    }
+    .metro-header-box:hover {
+      opacity: 1;
+      transform: translate(-50%, -100%) scale(1.05);
+      z-index: 9999 !important;
+    }
+
+    /* Monochromatic Blue Gradient Tiers */
+    .metro-tier-1 {
+      background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+      color: #0c4a6e;
+      border: 1px solid #7dd3fc;
+    }
+    .metro-tier-2 {
+      background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+      color: #082f49;
+      border: 1px solid #0284c7;
+    }
+    .metro-tier-3 {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #ffffff;
+      border: 1px solid #bae6fd;
+    }
+    .metro-tier-4 {
+      background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+      color: #ffffff;
+      border: 1px solid #93c5fd;
+    }
+    .metro-tier-5 {
+      background: linear-gradient(135deg, #0f2b5c, #051329);
+      color: #ffffff;
+      border: 1.5px solid #93c5fd;
+      box-shadow: 0 2px 8px rgba(5, 19, 41, 0.6);
+    }
+
+    /* Close-up Collision-Free Venue Tooltip */
+    .venue-tooltip {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      color: #0f172a;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    /* Pop-up Styling */
+    .popup-title { font-weight: 700; font-size: 14px; margin-bottom: 2px; color: #1a202c; }
+    .popup-subtitle { font-size: 11px; color: #718096; margin-bottom: 6px; text-transform: uppercase; font-weight: 600; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; }
+    .team-item { font-size: 12px; margin: 3px 0; line-height: 1.4; color: #2d3748; }
+    .venue-name-sub { font-size: 11px; color: #64748b; font-weight: 400; margin-left: 2px; }
+    .league-badge { 
+      font-weight: 700; 
+      font-size: 10px; 
+      color: #fff; 
+      background: #475569; 
+      padding: 1px 4px; 
+      border-radius: 3px; 
+      margin-right: 5px; 
+      display: inline-block;
+    }
+    .wiki-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #0284c7;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 6px;
+      padding-top: 4px;
+      border-top: 1px dashed #e2e8f0;
+      width: 100%;
+    }
+    .wiki-link:hover { color: #0369a1; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div id="status-banner">
+    <span class="status-dot"></span>
+    <span id="status-text">Connecting to Google Sheets...</span>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    // =========================================================================
+    // GOOGLE SHEETS LIVE CONFIGURATION
+    // Document: Sports (1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4)
+    // Sheet: Teams Database (GID 512966518)
+    // =========================================================================
+    const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
+    const SHEET_GID = "512966518";
+
+    // Initialize Map
+    const map = L.map('map').setView([39.8283, -98.5795], 4);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, TomTom',
+      maxZoom: 18
+    }).addTo(map);
+
+    // Dedicated Panes for exact layering
+    map.createPane('metroBoundaryPane');
+    map.getPane('metroBoundaryPane').style.zIndex = 350;
+
+    map.createPane('venuePane');
+    map.getPane('venuePane').style.zIndex = 500;
+
+    map.createPane('metroBadgePane');
+    map.getPane('metroBadgePane').style.zIndex = 650;
+
+    const metroBoundaryLayer = L.layerGroup().addTo(map);
+    const metroLayer = L.layerGroup().addTo(map);
+    const venueLayer = L.layerGroup().addTo(map);
+
+    let venues = [];
+    let metroCenters = {};
+    let activeMetro = null;
+    let refreshInProgress = false;
+
+    function getTeamTierClass(count) {
+      if (count >= 11) return "metro-tier-5";
+      if (count >= 8)  return "metro-tier-4";
+      if (count >= 5)  return "metro-tier-3";
+      if (count >= 3)  return "metro-tier-2";
+      return "metro-tier-1";
+    }
+
+    function getTierColor(count) {
+      if (count >= 11) return "#0f2b5c";
+      if (count >= 8)  return "#1d4ed8";
+      if (count >= 5)  return "#0284c7";
+      if (count >= 3)  return "#38bdf8";
+      return "#7dd3fc";
+    }
+
+    function updateMap() {
+      if (venues.length === 0) return;
+
+      const selectedLeagues = new Set(
+        Array.from(document.querySelectorAll('.league-checkbox:checked')).map(cb => cb.value)
+      );
+
+      refreshInProgress = true;
+      metroBoundaryLayer.clearLayers();
+      metroLayer.clearLayers();
+      venueLayer.clearLayers();
+
+      const currentZoom = map.getZoom();
+      const isOverview = currentZoom <= 6;
+
+      const metroTeamsMap = {};
+      const metroVenuesMap = {};
+      Object.keys(metroCenters).forEach(m => {
+        metroTeamsMap[m] = [];
+        metroVenuesMap[m] = [];
+      });
+
+      const activeVenuesList = [];
+      venues.forEach(v => {
+        const activeTeamsAtVenue = v.teams.filter(t => selectedLeagues.has(t.league));
+        if (activeTeamsAtVenue.length > 0) {
+          if (!metroVenuesMap[v.metro]) metroVenuesMap[v.metro] = [];
+          if (!metroTeamsMap[v.metro]) metroTeamsMap[v.metro] = [];
+
+          metroVenuesMap[v.metro].push(v);
+          activeTeamsAtVenue.forEach(t => {
+            metroTeamsMap[v.metro].push({ league: t.league, name: t.name, venue: v.venue });
+          });
+          activeVenuesList.push({ venueObj: v, activeTeams: activeTeamsAtVenue });
+        }
+      });
+
+      // Bounding box collision tracker for close-up labels
+      const placedLabelBoxes = [];
+      function checkOverlap(a, b) {
+
+        return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2);
+      }
+
+      // Plot Venues & Position Dynamic Labels
+      activeVenuesList.forEach(item => {
+        const v = item.venueObj;
+        const activeTeams = item.activeTeams;
+
+        const marker = L.circleMarker(v.coords, {
+          pane: 'venuePane',
+          radius: 5.5,
+          fillColor: "#dc2626",
+          color: "#ffffff",
+          weight: 1.5,
+          opacity: 1,
+          fillOpacity: 0.95
+        }).addTo(venueLayer);
+
+        const shortTeamSummary = activeTeams.map(t => 
+          t.name.replace(/^(Atlanta|Austin|Baltimore|Boston|Buffalo|Calgary|Charlotte|Chicago|Cincinnati|Cleveland|Columbus|Dallas|Denver|Detroit|Edmonton|Houston|Indiana|Indianapolis|Jacksonville|Kansas City|Las Vegas|Los Angeles|Louisville|Memphis|Miami|Milwaukee|Minnesota|Montreal|Nashville|New England|New Orleans|New York|NJ\/NY|Oklahoma City|Orlando|Ottawa|Philadelphia|Phoenix|Pittsburgh|Portland|Raleigh|North Carolina|Sacramento|Real|Utah|San Antonio|San Diego|San Francisco|Golden State|San Jose|Bay|Seattle|St Louis|Tampa Bay|Toronto|Vancouver|Washington|Winnipeg)\s+/i, '')
+        ).join(', ');
+
+        if (!isOverview) {
+          const pt = map.latLngToLayerPoint(v.coords);
+          const estWidth = Math.max(v.venue.length, shortTeamSummary.length) * 6.8 + 16;
+          const estHeight = 32;
+
+          const candidates = [
+            { dir: 'top',    offset: [0, -8],   box: { x1: pt.x - estWidth / 2, y1: pt.y - 8 - estHeight, x2: pt.x + estWidth / 2, y2: pt.y - 8 } },
+            { dir: 'right',  offset: [10, 0],   box: { x1: pt.x + 10, y1: pt.y - estHeight / 2, x2: pt.x + 10 + estWidth, y2: pt.y + estHeight / 2 } },
+            { dir: 'bottom', offset: [0, 8],    box: { x1: pt.x - estWidth / 2, y1: pt.y + 8, x2: pt.x + estWidth / 2, y2: pt.y + 8 + estHeight } },
+            { dir: 'left',   offset: [-10, 0],  box: { x1: pt.x - 10 - estWidth, y1: pt.y - estHeight / 2, x2: pt.x - 10, y2: pt.y + estHeight / 2 } }
+          ];
+
+          let chosen = null;
+          for (let cand of candidates) {
+            let collision = false;
+            for (let existing of placedLabelBoxes) {
+              if (checkOverlap(cand.box, existing)) {
+                collision = true;
+                break;
+              }
+            }
+            if (!collision) {
+              chosen = cand;
+              break;
+            }
+          }
+
+          if (chosen) {
+            placedLabelBoxes.push(chosen.box);
+            marker.bindTooltip(`<b>${v.venue}</b><br><span style="color:#64748b; font-size:10px;">${shortTeamSummary}</span>`, {
+              permanent: true,
+              direction: chosen.dir,
+              className: 'venue-tooltip',
+              offset: chosen.offset
+            });
+          }
+        }
+
+        const teamRows = activeTeams.map(t => 
+          `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`
+        ).join('');
+
+        const wikiSlug = encodeURIComponent(v.venue.replace(/ /g, '_'));
+        const wikiUrl = `https://en.wikipedia.org/wiki/${wikiSlug}`;
+
+        marker.bindPopup(`
+          <div class="popup-title">${v.venue}</div>
+          <div class="popup-subtitle">${v.city} &bull; Metro: ${v.metro}</div>
+          ${teamRows}
+          <a href="${wikiUrl}" target="_blank" rel="noopener noreferrer" class="wiki-link">
+            Wikipedia: ${v.venue} &rarr;
+          </a>
+        `);
+      });
+
+      // Plot Metros
+      Object.keys(metroCenters).forEach(mName => {
+        const activeTeamList = metroTeamsMap[mName] || [];
+        const activeVenueList = metroVenuesMap[mName] || [];
+        const teamCount = activeTeamList.length;
+
+        if (teamCount > 0) {
+          const tierClass = getTeamTierClass(teamCount);
+          const tierColor = getTierColor(teamCount);
+
+          const teamListHtml = activeTeamList.map(t => 
+            `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b> <span class="venue-name-sub">(${t.venue})</span></div>`
+          ).join('');
+
+          const popupContent = `
+            <div class="popup-title">${mName}</div>
+            <div class="popup-subtitle">Total Teams Active: <b>${teamCount}</b></div>
+            ${teamListHtml}
+          `;
+
+          let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+          activeVenueList.forEach(v => {
+            const [lat, lng] = v.coords;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+          });
+
+          const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
+          const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
+
+          const bounds = [
+            [minLat - latPad, minLng - lngPad],
+            [maxLat + latPad, maxLng + lngPad]
+          ];
+
+          const handleMetroClick = function(e) {
+            L.DomEvent.stopPropagation(e);
+            activeMetro = mName;
+            if (map.getZoom() <= 6) {
+              if (activeVenueList.length > 1) {
+                map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 11, duration: 1.0 });
+              } else {
+                map.flyTo(metroCenters[mName], 10, { duration: 1.0 });
+              }
+            } else {
+              marker.openPopup();
+            }
+          };
+
+          let marker;
+          if (isOverview) {
+            const metroIcon = L.divIcon({
+              className: 'metro-box-icon',
+              html: `<div class="metro-box ${tierClass}">${mName} (${teamCount})</div>`,
+              iconSize: null
+            });
+            marker = L.marker(metroCenters[mName], { 
+              icon: metroIcon,
+              pane: 'metroBadgePane'
+            }).addTo(metroLayer);
+
+            marker.bindPopup(popupContent, { autoPan: false });
+            marker.on('click', handleMetroClick);
+          } else {
+            L.rectangle(bounds, {
+              pane: 'metroBoundaryPane',
+              interactive: false,
+              color: tierColor,
+              weight: 1.5,
+              opacity: 0.55,
+              fillColor: tierColor,
+              fillOpacity: 0.08,
+              dashArray: '4, 4'
+            }).addTo(metroBoundaryLayer);
+
+            const labelPosition = [maxLat + latPad, (minLng + maxLng) / 2];
+
+            const headerIcon = L.divIcon({
+              className: 'metro-box-icon',
+              html: `<div class="metro-header-box ${tierClass}">${mName} (${teamCount})</div>`,
+              iconSize: null
+            });
+
+            marker = L.marker(labelPosition, { 
+              icon: headerIcon,
+              pane: 'metroBadgePane'
+            }).addTo(metroLayer);
+
+            marker.bindPopup(popupContent, { autoPan: false });
+            marker.on('click', handleMetroClick);
+          }
+
+          if (activeMetro === mName) {
+            marker.openPopup();
+          }
+        }
+      });
+
+      refreshInProgress = false;
+    }
+
+    // Bottom-Left Dashboard Controls
+    const dashboardControl = L.control({ position: 'bottomleft' });
+    dashboardControl.onAdd = function() {
+      const container = L.DomUtil.create('div', 'dashboard-container');
+
+      const orderedLeagues = ["NFL", "MLB", "NBA", "NHL", "MLS", "NWSL", "WNBA"];
+      const defaultChecked = new Set(["NFL", "MLB", "NBA", "NHL"]);
+
+      const filterCard = L.DomUtil.create('div', 'dashboard-card filter-card', container);
+
+      let checkboxesHtml = orderedLeagues.map(lg => `
+        <label class="league-option">
+          <input type="checkbox" class="league-checkbox" value="${lg}" ${defaultChecked.has(lg) ? 'checked' : ''}>
+          <span>${lg}</span>
+        </label>
+      `).join('');
+
+      filterCard.innerHTML = `
+        <div class="card-title">Filter by League</div>
+        <div class="filter-actions">
+          <button class="btn-action" id="btn-select-all">All</button>
+          <button class="btn-action" id="btn-clear-all">Clear</button>
+        </div>
+        <div>${checkboxesHtml}</div>
+      `;
+
+      const legendCard = L.DomUtil.create('div', 'dashboard-card legend-card', container);
+      legendCard.innerHTML = `
+        <div class="card-title">Map Key</div>
+        <div class="legend-subtitle">Metro Teams (Darker = More)</div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background: linear-gradient(135deg, #0f2b5c, #051329);"></span>
+          <span><b>11+ teams</b> (NY, LA)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background: linear-gradient(135deg, #1d4ed8, #1e3a8a);"></span>
+          <span><b>8–10 teams</b> (Chicago)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background: linear-gradient(135deg, #0284c7, #0369a1);"></span>
+          <span><b>5–7 teams</b> (Boston, SF, DC)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background: linear-gradient(135deg, #7dd3fc, #38bdf8);"></span>
+          <span><b>3–4 teams</b> (Dallas, Miami, KC)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background: linear-gradient(135deg, #e0f2fe, #bae6fd); border: 1px solid #7dd3fc;"></span>
+          <span><b>1–2 teams</b> (Austin, Buffalo)</span>
+        </div>
+        <div class="legend-subtitle" style="margin-top: 6px;">Venues</div>
+        <div class="legend-item">
+          <span class="legend-circle" style="width: 8.5px; height: 8.5px; background: #dc2626; border: 1.5px solid white; box-shadow: 0 0 2px rgba(0,0,0,0.4);"></span>
+          <span><b>Stadium / Arena</b> (Click for Wiki)</span>
+        </div>
+      `;
+
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+      return container;
+    };
+    dashboardControl.addTo(map);
+
+    // =========================================================================
+    // DIRECT GOOGLE SHEETS SYNC (JSONP: No CORS / No Local file:/// Errors)
+    // =========================================================================
+    window.handleGvizResponse = function(response) {
+      if (!response || !response.table) {
+        document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
+        return;
+      }
+
+      const cols = response.table.cols.map(c => (c.label || c.id || '').trim());
+      const rawRows = response.table.rows.map(r => {
+        let rowObj = {};
+        r.c.forEach((cell, idx) => {
+          rowObj[cols[idx]] = cell ? (cell.v !== null ? cell.v : '') : '';
+        });
+        return rowObj;
+      });
+
+      const venueMap = {};
+      const metroSumCoords = {};
+
+      rawRows.forEach(row => {
+        const league = String(row['League'] || '').trim();
+        const metro = String(row['Metro Area'] || '').trim();
+        const team = String(row['Team Name'] || '').trim();
+        const venueName = String(row['Venue Name'] || '').trim();
+        const venueCity = String(row['Venue City'] || '').trim();
+        const lat = parseFloat(row['Latitude']);
+        const lng = parseFloat(row['Longitude']);
+
+        if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
+
+        const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
+        if (!venueMap[venueKey]) {
+          venueMap[venueKey] = {
+            venue: venueName,
+            city: venueCity,
+            metro: metro,
+            coords: [lat, lng],
+            teams: []
+          };
+        }
+        venueMap[venueKey].teams.push({ league: league, name: team });
+
+        if (!metroSumCoords[metro]) {
+          metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
+        }
+        metroSumCoords[metro].sumLat += lat;
+        metroSumCoords[metro].sumLng += lng;
+        metroSumCoords[metro].count += 1;
+      });
+
+      venues = Object.values(venueMap);
+      metroCenters = {};
+      Object.keys(metroSumCoords).forEach(m => {
+        metroCenters[m] = [
+          metroSumCoords[m].sumLat / metroSumCoords[m].count,
+          metroSumCoords[m].sumLng / metroSumCoords[m].count
+        ];
+      });
+
+      // Show success on banner, then fade out
+      const banner = document.getElementById('status-banner');
+      document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
+      setTimeout(() => {
+        banner.style.opacity = '0';
+      }, 2500);
+
+      updateMap();
+    };
+
+    // Dynamically inject script tag to load Google Sheet data without CORS limits
+    function loadGoogleSheetData() {
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}`;
+      const script = document.createElement('script');
+      script.src = gvizUrl;
+      script.onerror = function() {
+        document.getElementById('status-text').textContent = "Failed to reach Google Sheet. Ensure 'Anyone with the link' is set to Viewer.";
+      };
+      document.body.appendChild(script);
+    }
+
+    // Attach Event Listeners
+    document.querySelectorAll('.league-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateMap);
+    });
+
+    document.getElementById('btn-select-all').addEventListener('click', () => {
+      document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = true);
+      updateMap();
+    });
+
+    document.getElementById('btn-clear-all').addEventListener('click', () => {
+      document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = false);
+      updateMap();
+    });
+
+    map.on('popupclose', () => {
+      if (!refreshInProgress) activeMetro = null;
+    });
+
+    map.on('zoomend', updateMap);
+    map.on('moveend', () => {
+      if (map.getZoom() > 6) updateMap();
+    });
+
+    // Run connection on start
+    loadGoogleSheetData();
+  </script>
+</body>
+</html>
