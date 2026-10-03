@@ -232,16 +232,15 @@
     const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
     const SHEET_GID = "512966518";
 
-    // 1. Basemap Definitions
-    const cartoPositron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
-    });
-
+    // 1. Basemap Definitions (Keyless)
     const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{y}/{x}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
+    });
+
+    const esriGray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+      maxZoom: 16
     });
 
     const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -252,13 +251,13 @@
     // 2. Initialize Map
     const map = L.map('map', { 
       zoomControl: true,
-      layers: [cartoPositron]
+      layers: [osmStandard]
     }).setView([39.8283, -98.5795], 4);
 
-    // 3. Basemap Toggle Control
+    // 3. Basemap Control Selector
     const baseMaps = {
-      "Clean Light (CARTO)": cartoPositron,
       "OpenStreetMap": osmStandard,
+      "Light Gray Canvas": esriGray,
       "Satellite Imagery": esriSatellite
     };
     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
@@ -387,7 +386,7 @@
           const candidates = [
             { dir: 'top',    offset: [0, -8],   box: { x1: pt.x - estWidth / 2, y1: pt.y - 8 - estHeight, x2: pt.x + estWidth / 2, y2: pt.y - 8 } },
             { dir: 'right',  offset: [10, 0],   box: { x1: pt.x + 10, y1: pt.y - estHeight / 2, x2: pt.x + 10 + estWidth, y2: pt.y + estHeight / 2 } },
-            { dir: 'bottom', offset: [0, 8],    box: { x1: pt.x - estWidth / 2, y1: pt.y + 8, x2: pt.x + estWidth / 2, y2: pt.y + 8 + estHeight } },
+            { dir: 'bottom', offset: [0, 8],    box: { x1: pt.x - estWidth / 2, y1: pt.y + 8, x2: pt.x - estWidth / 2, y2: pt.y + 8 + estHeight } },
             { dir: 'left',   offset: [-10, 0],  box: { x1: pt.x - 10 - estWidth, y1: pt.y - estHeight / 2, x2: pt.x - 10, y2: pt.y + estHeight / 2 } }
           ];
 
