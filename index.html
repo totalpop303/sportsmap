@@ -6,6 +6,7 @@
   <title>Pro Sports by Metro Area</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     #map { height: 100vh; width: 100vw; }
@@ -229,38 +230,38 @@
   <div id="map"></div>
 
   <script>
-    const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
-    const SHEET_GID = "512966518";
+    // Exact Published CSV Export Endpoint from Google Sheets
+    const PUBLISHED_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSIGZl2kR-jnoUG-m5OYdhKKiln1ySaNGlj9CC4ASsYeG0Ax1aTyOrVf_v2zQ57bd6rSQ-uosiHE-v4/pub?gid=512966518&single=true&output=csv";
 
-// 1. Fully Keyless & Open Tile Providers
-const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  maxZoom: 19
-});
+    // 1. Fully Keyless Tile Providers
+    const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    });
 
-const esriGray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-  maxZoom: 16
-});
+    const esriGray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+      maxZoom: 16
+    });
 
-const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-  maxZoom: 18
-});
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      maxZoom: 18
+    });
 
-// 2. Initialize Map (Defaulting to Esri Light Gray Canvas for high contrast)
-const map = L.map('map', { 
-  zoomControl: true,
-  layers: [esriGray]
-}).setView([39.8283, -98.5795], 4);
+    // 2. Initialize Map (Defaulting to Esri Light Gray Canvas)
+    const map = L.map('map', { 
+      zoomControl: true,
+      layers: [esriGray]
+    }).setView([39.8283, -98.5795], 4);
 
-// 3. Basemap Selector (Top Right)
-const baseMaps = {
-  "Light Gray Canvas": esriGray,
-  "OpenStreetMap": osmStandard,
-  "Satellite Imagery": esriSatellite
-};
-L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+    // 3. Basemap Selector (Top Right)
+    const baseMaps = {
+      "Light Gray Canvas": esriGray,
+      "OpenStreetMap": osmStandard,
+      "Satellite Imagery": esriSatellite
+    };
+    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
     map.createPane('metroBoundaryPane');
     map.getPane('metroBoundaryPane').style.zIndex = 350;
@@ -386,7 +387,7 @@ L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
           const candidates = [
             { dir: 'top',    offset: [0, -8],   box: { x1: pt.x - estWidth / 2, y1: pt.y - 8 - estHeight, x2: pt.x + estWidth / 2, y2: pt.y - 8 } },
             { dir: 'right',  offset: [10, 0],   box: { x1: pt.x + 10, y1: pt.y - estHeight / 2, x2: pt.x + 10 + estWidth, y2: pt.y + estHeight / 2 } },
-            { dir: 'bottom', offset: [0, 8],    box: { x1: pt.x - estWidth / 2, y1: pt.y + 8, x2: pt.x - estWidth / 2, y2: pt.y + 8 + estHeight } },
+            { dir: 'bottom', offset: [0, 8],    box: { x1: pt.x - estWidth / 2, y1: pt.y + 8, x2: pt.x + estWidth / 2, y2: pt.y + 8 + estHeight } },
             { dir: 'left',   offset: [-10, 0],  box: { x1: pt.x - 10 - estWidth, y1: pt.y - estHeight / 2, x2: pt.x - 10, y2: pt.y + estHeight / 2 } }
           ];
 
@@ -617,110 +618,102 @@ L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
     };
     dashboardControl.addTo(map);
 
-    // Dynamic Google Sheet Handler
-    window.handleGvizResponse = function(response) {
-      if (!response || !response.table) {
-        document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
-        return;
-      }
+    // Fetch Published CSV Stream via JSONP Proxy (Restricted Document Friendly)
+    function loadGoogleSheetData() {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(PUBLISHED_CSV_URL)}`;
 
-      const cols = response.table.cols.map((c, idx) => {
-        const name = (c && (c.label || c.id || '')).trim();
-        return name || String.fromCharCode(65 + idx);
-      });
+      fetch(proxyUrl)
+        .then(response => {
+          if (response.ok) return response.json();
+          throw new Error('Network response failed');
+        })
+        .then(data => {
+          if (!data || !data.contents) {
+            document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
+            return;
+          }
 
-      const rawRows = response.table.rows.map(r => {
-        let rowObj = {};
-        if (r && r.c) {
-          r.c.forEach((cell, idx) => {
-            const colName = cols[idx] || String.fromCharCode(65 + idx);
-            if (cell && cell.v !== null && cell.v !== undefined) {
-              rowObj[colName] = cell.v;
-            } else {
-              rowObj[colName] = '';
+          Papa.parse(data.contents, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+              if (!results || !results.data || results.data.length === 0) {
+                document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
+                return;
+              }
+
+              const rawRows = results.data;
+              const venueMap = {};
+              const metroSumCoords = {};
+
+              function getRowVal(row, possibleKeys) {
+                for (let key of possibleKeys) {
+                  for (let rk in row) {
+                    if (rk.trim().toLowerCase() === key.toLowerCase()) {
+                      return row[rk];
+                    }
+                  }
+                }
+                return '';
+              }
+
+              rawRows.forEach(row => {
+                const league = String(getRowVal(row, ['League', 'league', 'A']) || '').trim();
+                const metro = String(getRowVal(row, ['Metro Area', 'metro area', 'Metro', 'B']) || '').trim();
+                const team = String(getRowVal(row, ['Team Name', 'team name', 'Team', 'C']) || '').trim();
+                const venueName = String(getRowVal(row, ['Venue Name', 'venue name', 'Venue', 'D']) || '').trim();
+                const venueCity = String(getRowVal(row, ['Venue City', 'venue city', 'City', 'E']) || '').trim();
+                
+                const rawLat = getRowVal(row, ['Latitude', 'latitude', 'Lat', 'F']);
+                const rawLng = getRowVal(row, ['Longitude', 'longitude', 'Lng', 'Lon', 'G']);
+                const lat = typeof rawLat === 'number' ? rawLat : parseFloat(rawLat);
+                const lng = typeof rawLng === 'number' ? rawLng : parseFloat(rawLng);
+
+                if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
+
+                const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
+                if (!venueMap[venueKey]) {
+                  venueMap[venueKey] = {
+                    venue: venueName,
+                    city: venueCity,
+                    metro: metro,
+                    coords: [lat, lng],
+                    teams: []
+                  };
+                }
+                venueMap[venueKey].teams.push({ league: league, name: team });
+
+                if (!metroSumCoords[metro]) {
+                  metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
+                }
+                metroSumCoords[metro].sumLat += lat;
+                metroSumCoords[metro].sumLng += lng;
+                metroSumCoords[metro].count += 1;
+              });
+
+              venues = Object.values(venueMap);
+              metroCenters = {};
+              Object.keys(metroSumCoords).forEach(m => {
+                metroCenters[m] = [
+                  metroSumCoords[m].sumLat / metroSumCoords[m].count,
+                  metroSumCoords[m].sumLng / metroSumCoords[m].count
+                ];
+              });
+
+              const banner = document.getElementById('status-banner');
+              document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
+              setTimeout(() => {
+                banner.style.opacity = '0';
+              }, 2500);
+
+              updateMap();
             }
           });
-        }
-        return rowObj;
-      });
-
-      function getRowVal(row, possibleKeys) {
-        for (let key of possibleKeys) {
-          for (let rk in row) {
-            if (rk.trim().toLowerCase() === key.toLowerCase()) {
-              return row[rk];
-            }
-          }
-        }
-        return '';
-      }
-
-      const venueMap = {};
-      const metroSumCoords = {};
-
-      rawRows.forEach(row => {
-        const league = String(getRowVal(row, ['League', 'A']) || '').trim();
-        const metro = String(getRowVal(row, ['Metro Area', 'Metro', 'B']) || '').trim();
-        const team = String(getRowVal(row, ['Team Name', 'Team', 'C']) || '').trim();
-        const venueName = String(getRowVal(row, ['Venue Name', 'Venue', 'D']) || '').trim();
-        const venueCity = String(getRowVal(row, ['Venue City', 'City', 'E']) || '').trim();
-        
-        const rawLat = getRowVal(row, ['Latitude', 'Lat', 'F']);
-        const rawLng = getRowVal(row, ['Longitude', 'Lng', 'Lon', 'G']);
-        const lat = typeof rawLat === 'number' ? rawLat : parseFloat(rawLat);
-        const lng = typeof rawLng === 'number' ? rawLng : parseFloat(rawLng);
-
-        if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
-
-        const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
-        if (!venueMap[venueKey]) {
-          venueMap[venueKey] = {
-            venue: venueName,
-            city: venueCity,
-            metro: metro,
-            coords: [lat, lng],
-            teams: []
-          };
-        }
-        venueMap[venueKey].teams.push({ league: league, name: team });
-
-        if (!metroSumCoords[metro]) {
-          metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
-        }
-        metroSumCoords[metro].sumLat += lat;
-        metroSumCoords[metro].sumLng += lng;
-        metroSumCoords[metro].count += 1;
-      });
-
-      venues = Object.values(venueMap);
-      metroCenters = {};
-      Object.keys(metroSumCoords).forEach(m => {
-        metroCenters[m] = [
-          metroSumCoords[m].sumLat / metroSumCoords[m].count,
-          metroSumCoords[m].sumLng / metroSumCoords[m].count
-        ];
-      });
-
-      const banner = document.getElementById('status-banner');
-      document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
-      setTimeout(() => {
-        banner.style.opacity = '0';
-      }, 2500);
-
-      updateMap();
-    };
-
-function loadGoogleSheetData() {
-  // Uses the published document key from your 'Publish to web' dialog
-  const gvizUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vSIGZl2kR-jnoUG-m5OYdhKKiln1ySaNGlj9CC4ASsYeG0Ax1aTyOrVf_v2zQ57bd6rSQ-uosiHE-v4/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=512966518`;
-  
-  const script = document.createElement('script');
-  script.src = gvizUrl;
-  script.onerror = function() {
-    document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
-  };
-  document.body.appendChild(script);
-}
+        })
+        .catch(err => {
+          document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
+        });
+    }
 
     // Event Listeners
     document.addEventListener('change', function(e) {
