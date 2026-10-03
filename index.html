@@ -271,14 +271,6 @@
   <div id="map"></div>
 
   <script>
-    // =========================================================================
-    // GOOGLE SHEETS LIVE CONFIGURATION
-    // Document: Sports (1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4)
-    // Sheet: Teams Database (GID 512966518)
-    // =========================================================================
-    const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
-    const SHEET_GID = "512966518";
-
     // Initialize Map
     const map = L.map('map', { zoomControl: true }).setView([39.8283, -98.5795], 4);
 
@@ -379,13 +371,12 @@
         }
       });
 
-      // Fit map bounds on first load
       if (!initialFitDone && activeVenuesList.length > 0) {
         initialFitDone = true;
         resetToDefaultView();
       }
 
-      // 1. Plot Venues & Position Dynamic Labels
+      // Plot Venues
       const placedVenueBoxes = [];
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
@@ -460,7 +451,7 @@
         `);
       });
 
-      // 2. Plot Metros with Collision Avoidance & Leader Lines
+      // Plot Metros
       const placedMetroLabelBoxes = [];
 
       Object.keys(metroCenters).forEach(mName => {
@@ -499,7 +490,6 @@
             [maxLat + latPad, maxLng + lngPad]
           ];
 
-          // Zoom-on-click for metro labels at all zoom levels
           const handleMetroClick = function(e) {
             L.DomEvent.stopPropagation(e);
             activeMetro = mName;
@@ -612,7 +602,7 @@
       refreshInProgress = false;
     }
 
-    // Dashboard Controls
+    // Controls
     const dashboardControl = L.control({ position: 'bottomleft' });
     dashboardControl.onAdd = function() {
       const container = L.DomUtil.create('div', 'dashboard-container');
@@ -645,9 +635,7 @@
     };
     dashboardControl.addTo(map);
 
-    // =========================================================================
-    // ORIGINAL WORKING GOOGLE SHEETS PARSER (JSONP)
-    // =========================================================================
+    // Dynamic Published Data Loader
     window.handleGvizResponse = function(response) {
       if (!response || !response.table) {
         document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
@@ -716,16 +704,17 @@
     };
 
     function loadGoogleSheetData() {
-      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}`;
+      // Points directly to the published sheet key from your screenshot
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vSIGZl2kR-jnoUG-m5OYdhKKiln1ySaNGlj9CC4ASsYeG0Ax1aTyOrVf_v2zQ57bd6rSQ-uosiHE-v4/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=512966518`;
       const script = document.createElement('script');
       script.src = gvizUrl;
       script.onerror = function() {
-        document.getElementById('status-text').textContent = "Failed to reach Google Sheet. Ensure 'Anyone with the link' is set to Viewer.";
+        document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
       };
       document.body.appendChild(script);
     }
 
-    // Attach Event Listeners
+    // Event Listeners
     document.addEventListener('change', function(e) {
       if (e.target && e.target.classList.contains('league-checkbox')) {
         updateMap();
