@@ -6,7 +6,6 @@
   <title>Pro Sports by Metro Area</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     #map { height: 100vh; width: 100vw; }
@@ -230,8 +229,8 @@
   <div id="map"></div>
 
   <script>
-    // Exact Published CSV URL from Google Sheets
-    const PUBLISHED_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSIGZl2kR-jnoUG-m5OYdhKKiln1ySaNGlj9CC4ASsYeG0Ax1aTyOrVf_v2zQ57bd6rSQ-uosiHE-v4/pub?gid=512966518&single=true&output=csv";
+    const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
+    const SHEET_GID = "512966518";
 
     // Initialize Map
     const map = L.map('map', { zoomControl: true }).setView([39.8283, -98.5795], 4);
@@ -563,7 +562,7 @@
       refreshInProgress = false;
     }
 
-    // Dashboard Controls
+    // Controls
     const dashboardControl = L.control({ position: 'bottomleft' });
     dashboardControl.onAdd = function() {
       const container = L.DomUtil.create('div', 'dashboard-container');
@@ -596,77 +595,113 @@
     };
     dashboardControl.addTo(map);
 
-    // Fetch CSV Data via PapaParse (Direct HTTP Request)
-    function loadGoogleSheetData() {
-      Papa.parse(PUBLISHED_CSV_URL, {
-        download: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-          if (!results || !results.data || results.data.length === 0) {
-            document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
-            return;
-          }
+    // JSONP Handler with Robust Multi-Column Name Mapping
+    window.handleGvizResponse = function(response) {
+      if (!response || !response.table) {
+        document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
+        return;
+      }
 
-          const rawRows = results.data;
-          const venueMap = {};
-          const metroSumCoords = {};
-
-          rawRows.forEach(row => {
-            const league = String(row['League'] || row['league'] || '').trim();
-            const metro = String(row['Metro Area'] || row['metro area'] || row['Metro'] || '').trim();
-            const team = String(row['Team Name'] || row['team name'] || row['Team'] || '').trim();
-            const venueName = String(row['Venue Name'] || row['venue name'] || row['Venue'] || '').trim();
-            const venueCity = String(row['Venue City'] || row['venue city'] || row['City'] || '').trim();
-            const lat = parseFloat(row['Latitude'] || row['latitude'] || row['Lat']);
-            const lng = parseFloat(row['Longitude'] || row['longitude'] || row['Lng'] || row['Lon']);
-
-            if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
-
-            const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
-            if (!venueMap[venueKey]) {
-              venueMap[venueKey] = {
-                venue: venueName,
-                city: venueCity,
-                metro: metro,
-                coords: [lat, lng],
-                teams: []
-              };
-            }
-            venueMap[venueKey].teams.push({ league: league, name: team });
-
-            if (!metroSumCoords[metro]) {
-              metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
-            }
-            metroSumCoords[metro].sumLat += lat;
-            metroSumCoords[metro].sumLng += lng;
-            metroSumCoords[metro].count += 1;
-          });
-
-          venues = Object.values(venueMap);
-          metroCenters = {};
-          Object.keys(metroSumCoords).forEach(m => {
-            metroCenters[m] = [
-              metroSumCoords[m].sumLat / metroSumCoords[m].count,
-              metroSumCoords[m].sumLng / metroSumCoords[m].count
-            ];
-          });
-
-          const banner = document.getElementById('status-banner');
-          document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
-          setTimeout(() => {
-            banner.style.opacity = '0';
-          }, 2500);
-
-          updateMap();
-        },
-        error: function(err) {
-          document.getElementById('status-text').textContent = "Failed to reach Google Sheet CSV.";
-        }
+      // Map column headers flexible enough to read label OR column position
+      const cols = response.table.cols.map((c, i) => {
+        return {
+          id: c ? (c.id || '').trim() : '',
+          label: c ? (c.label || '').trim() : '',
+          idx: i
+        };
       });
+
+      function findColIdx(possibleNames) {
+        for (let name of possibleNames) {
+          const matched = cols.find(c => 
+            c.label.toLowerCase() === name.toLowerCase() || 
+            c.id.toLowerCase() === name.toLowerCase()
+          );
+          if (matched) return matched.idx;
+        }
+        return -1;
+      }
+
+      const leagueIdx = findColIdx(['League', 'league', 'A']);
+      const metroIdx = findColIdx(['Metro Area', 'metro area', 'Metro', 'B']);
+      const teamIdx = findColIdx(['Team Name', 'team name', 'Team', 'C']);
+      const venueIdx = findColIdx(['Venue Name', 'venue name', 'Venue', 'D']);
+      const cityIdx = findColIdx(['Venue City', 'venue city', 'City', 'E']);
+      const latIdx = findColIdx(['Latitude', 'latitude', 'Lat', 'F']);
+      const lngIdx = findColIdx(['Longitude', 'longitude', 'Lng', 'Lon', 'G']);
+
+      const venueMap = {};
+      const metroSumCoords = {};
+
+      response.table.rows.forEach(r => {
+        if (!r || !r.c) return;
+
+        const getCellVal = (idx) => {
+          if (idx === -1 || !r.c[idx]) return '';
+          const val = r.c[idx].v;
+          return val !== null && val !== undefined ? String(val).trim() : '';
+        };
+
+        const league = getCellVal(leagueIdx);
+        const metro = getCellVal(metroIdx);
+        const team = getCellVal(teamIdx);
+        const venueName = getCellVal(venueIdx);
+        const venueCity = getCellVal(cityIdx);
+        const lat = parseFloat(getCellVal(latIdx));
+        const lng = parseFloat(getCellVal(lngIdx));
+
+        if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
+
+        const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
+        if (!venueMap[venueKey]) {
+          venueMap[venueKey] = {
+            venue: venueName,
+            city: venueCity,
+            metro: metro,
+            coords: [lat, lng],
+            teams: []
+          };
+        }
+        venueMap[venueKey].teams.push({ league: league, name: team });
+
+        if (!metroSumCoords[metro]) {
+          metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
+        }
+        metroSumCoords[metro].sumLat += lat;
+        metroSumCoords[metro].sumLng += lng;
+        metroSumCoords[metro].count += 1;
+      });
+
+      venues = Object.values(venueMap);
+      metroCenters = {};
+      Object.keys(metroSumCoords).forEach(m => {
+        metroCenters[m] = [
+          metroSumCoords[m].sumLat / metroSumCoords[m].count,
+          metroSumCoords[m].sumLng / metroSumCoords[m].count
+        ];
+      });
+
+      const banner = document.getElementById('status-banner');
+      document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
+      setTimeout(() => {
+        banner.style.opacity = '0';
+      }, 2500);
+
+      updateMap();
+    };
+
+    function loadGoogleSheetData() {
+      // Direct GViz request forcing full SQL selection across all rows
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}&tq=${encodeURIComponent('SELECT *')}`;
+      const script = document.createElement('script');
+      script.src = gvizUrl;
+      script.onerror = function() {
+        document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
+      };
+      document.body.appendChild(script);
     }
 
-    // Delegated Global Event Listeners
+    // Event Listeners
     document.addEventListener('change', function(e) {
       if (e.target && e.target.classList.contains('league-checkbox')) {
         updateMap();
