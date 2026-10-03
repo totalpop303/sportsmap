@@ -385,8 +385,10 @@
           `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`
         ).join('');
 
-        const wikiSlug = encodeURIComponent(v.venue.replace(/ /g, '_'));
-        const wikiUrl = `https://en.wikipedia.org/wiki/${wikiSlug}`;
+        // Use 'Venue Wiki' URL if present; otherwise fall back to native Wikipedia search
+        const wikiUrl = v.wikiUrl && v.wikiUrl.startsWith('http') 
+          ? v.wikiUrl 
+          : `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(v.venue + ' ' + v.city)}`;
 
         const popupMarkup = `
           <div class="popup-title">${v.venue}</div>
@@ -640,7 +642,7 @@
     };
     dashboardControl.addTo(map);
 
-    // Native JSONP Endpoint Parser
+    // Dynamic Google Sheet Handler
     window.handleGvizResponse = function(response) {
       if (!response || !response.table) {
         document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
@@ -693,6 +695,9 @@
         const lat = typeof rawLat === 'number' ? rawLat : parseFloat(rawLat);
         const lng = typeof rawLng === 'number' ? rawLng : parseFloat(rawLng);
 
+        // Read from 'Venue Wiki' (or aliases: Wiki, Wikipedia URL, Wikipedia)
+        const wikiUrl = String(getRowVal(row, ['Venue Wiki', 'Wiki', 'Wikipedia URL', 'Wikipedia', 'Link']) || '').trim();
+
         if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
 
         const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
@@ -702,6 +707,7 @@
             city: venueCity,
             metro: metro,
             coords: [lat, lng],
+            wikiUrl: wikiUrl,
             teams: []
           };
         }
