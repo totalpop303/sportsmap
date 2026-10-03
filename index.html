@@ -285,6 +285,7 @@
     let venues = [];
     let metroCenters = {};
     let activeMetro = null;
+    let activeVenueKey = null;
     let refreshInProgress = false;
     let initialFitDone = false;
 
@@ -309,6 +310,8 @@
     }
 
     function resetToDefaultView() {
+      activeVenueKey = null;
+      activeMetro = null;
       const activeCoords = venues.map(v => v.coords);
       if (activeCoords.length > 0) {
         const bounds = L.latLngBounds(activeCoords);
@@ -398,16 +401,26 @@
           </a>
         `;
 
-        marker.bindPopup(popupMarkup);
+        // Bind Popup without AutoPan so it doesn't close on map movements
+        marker.bindPopup(popupMarkup, { autoPan: false });
 
         const handleVenueZoom = function(e) {
           L.DomEvent.stopPropagation(e);
+          activeVenueKey = v.venue;
           const targetZoom = Math.max(map.getZoom(), 15);
           map.flyTo(v.coords, targetZoom, { duration: 0.8 });
-          marker.openPopup();
+          
+          // Open popup after flyTo animation resolves to keep it stable
+          setTimeout(() => {
+            marker.openPopup();
+          }, 850);
         };
 
         marker.on('click', handleVenueZoom);
+
+        if (activeVenueKey === v.venue) {
+          marker.openPopup();
+        }
 
         if (!isOverview) {
           const pt = map.latLngToLayerPoint(v.coords);
@@ -497,6 +510,7 @@
           const handleMetroClick = function(e) {
             L.DomEvent.stopPropagation(e);
             activeMetro = mName;
+            activeVenueKey = null;
             if (activeVenueList.length > 1) {
               map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 12, duration: 0.9 });
             } else {
@@ -506,7 +520,6 @@
 
           let marker;
           if (isOverview) {
-            // Clean Compact Circle Badge for National View
             const metroIcon = L.divIcon({
               className: 'metro-box-icon',
               html: `<div class="metro-circle-badge ${tierClass}" title="${mName}: ${teamCount} teams">${teamCount}</div>`,
@@ -774,7 +787,10 @@
     });
 
     map.on('popupclose', () => {
-      if (!refreshInProgress) activeMetro = null;
+      if (!refreshInProgress) {
+        activeMetro = null;
+        activeVenueKey = null;
+      }
     });
 
     map.on('zoomend', updateMap);
