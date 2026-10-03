@@ -138,25 +138,25 @@
       height: 15px;
     }
 
-    /* National Zoom Metro Box Marker */
+    /* National Zoom Compact Metro Circle Badge */
     .metro-box-icon { background: transparent; border: none; }
-    .metro-box {
-      display: inline-flex;
+    .metro-circle-badge {
+      display: flex;
       align-items: center;
-      gap: 4px;
-      border-radius: 4px;
-      font-weight: 700;
-      font-size: 11px;
-      padding: 3px 8px;
-      white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       cursor: pointer;
       transform: translate(-50%, -50%);
-      transition: transform 0.15s ease, background 0.2s ease;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
-    .metro-box:hover {
-      transform: translate(-50%, -50%) scale(1.08);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    .metro-circle-badge:hover {
+      transform: translate(-50%, -50%) scale(1.2);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
       z-index: 9999 !important;
     }
 
@@ -385,7 +385,6 @@
           `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`
         ).join('');
 
-        // Use 'Venue Wiki' URL if present; otherwise fall back to native Wikipedia search
         const wikiUrl = v.wikiUrl && v.wikiUrl.startsWith('http') 
           ? v.wikiUrl 
           : `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(v.venue + ' ' + v.city)}`;
@@ -401,7 +400,6 @@
 
         marker.bindPopup(popupMarkup);
 
-        // Zoom into venue on click
         const handleVenueZoom = function(e) {
           L.DomEvent.stopPropagation(e);
           const targetZoom = Math.max(map.getZoom(), 15);
@@ -508,9 +506,10 @@
 
           let marker;
           if (isOverview) {
+            // Clean Compact Circle Badge for National View
             const metroIcon = L.divIcon({
               className: 'metro-box-icon',
-              html: `<div class="metro-box ${tierClass}">${mName} (${teamCount})</div>`,
+              html: `<div class="metro-circle-badge ${tierClass}" title="${mName}: ${teamCount} teams">${teamCount}</div>`,
               iconSize: null
             });
             marker = L.marker(metroCenters[mName], { 
@@ -695,7 +694,6 @@
         const lat = typeof rawLat === 'number' ? rawLat : parseFloat(rawLat);
         const lng = typeof rawLng === 'number' ? rawLng : parseFloat(rawLng);
 
-        // Read from 'Venue Wiki' (or aliases: Wiki, Wikipedia URL, Wikipedia)
         const wikiUrl = String(getRowVal(row, ['Venue Wiki', 'Wiki', 'Wikipedia URL', 'Wikipedia', 'Link']) || '').trim();
 
         if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
