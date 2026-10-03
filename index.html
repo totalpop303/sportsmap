@@ -562,7 +562,7 @@
       refreshInProgress = false;
     }
 
-    // Controls
+    // Dashboard Controls
     const dashboardControl = L.control({ position: 'bottomleft' });
     dashboardControl.onAdd = function() {
       const container = L.DomUtil.create('div', 'dashboard-container');
@@ -595,60 +595,60 @@
     };
     dashboardControl.addTo(map);
 
-    // JSONP Handler with Robust Multi-Column Name Mapping
+    // Dynamic Google Sheet Handler
     window.handleGvizResponse = function(response) {
       if (!response || !response.table) {
         document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
         return;
       }
 
-      // Map column headers flexible enough to read label OR column position
-      const cols = response.table.cols.map((c, i) => {
-        return {
-          id: c ? (c.id || '').trim() : '',
-          label: c ? (c.label || '').trim() : '',
-          idx: i
-        };
+      // Read exact column headers or fall back to positional indices A-G
+      const cols = response.table.cols.map((c, idx) => {
+        const name = (c && (c.label || c.id || '')).trim();
+        return name || String.fromCharCode(65 + idx);
       });
 
-      function findColIdx(possibleNames) {
-        for (let name of possibleNames) {
-          const matched = cols.find(c => 
-            c.label.toLowerCase() === name.toLowerCase() || 
-            c.id.toLowerCase() === name.toLowerCase()
-          );
-          if (matched) return matched.idx;
+      const rawRows = response.table.rows.map(r => {
+        let rowObj = {};
+        if (r && r.c) {
+          r.c.forEach((cell, idx) => {
+            const colName = cols[idx] || String.fromCharCode(65 + idx);
+            if (cell && cell.v !== null && cell.v !== undefined) {
+              rowObj[colName] = cell.v;
+            } else {
+              rowObj[colName] = '';
+            }
+          });
         }
-        return -1;
-      }
+        return rowObj;
+      });
 
-      const leagueIdx = findColIdx(['League', 'league', 'A']);
-      const metroIdx = findColIdx(['Metro Area', 'metro area', 'Metro', 'B']);
-      const teamIdx = findColIdx(['Team Name', 'team name', 'Team', 'C']);
-      const venueIdx = findColIdx(['Venue Name', 'venue name', 'Venue', 'D']);
-      const cityIdx = findColIdx(['Venue City', 'venue city', 'City', 'E']);
-      const latIdx = findColIdx(['Latitude', 'latitude', 'Lat', 'F']);
-      const lngIdx = findColIdx(['Longitude', 'longitude', 'Lng', 'Lon', 'G']);
+      // Flexible property getter that searches key variations and converts numbers safely
+      function getRowVal(row, possibleKeys) {
+        for (let key of possibleKeys) {
+          for (let rk in row) {
+            if (rk.trim().toLowerCase() === key.toLowerCase()) {
+              return row[rk];
+            }
+          }
+        }
+        return '';
+      }
 
       const venueMap = {};
       const metroSumCoords = {};
 
-      response.table.rows.forEach(r => {
-        if (!r || !r.c) return;
-
-        const getCellVal = (idx) => {
-          if (idx === -1 || !r.c[idx]) return '';
-          const val = r.c[idx].v;
-          return val !== null && val !== undefined ? String(val).trim() : '';
-        };
-
-        const league = getCellVal(leagueIdx);
-        const metro = getCellVal(metroIdx);
-        const team = getCellVal(teamIdx);
-        const venueName = getCellVal(venueIdx);
-        const venueCity = getCellVal(cityIdx);
-        const lat = parseFloat(getCellVal(latIdx));
-        const lng = parseFloat(getCellVal(lngIdx));
+      rawRows.forEach(row => {
+        const league = String(getRowVal(row, ['League', 'A']) || '').trim();
+        const metro = String(getRowVal(row, ['Metro Area', 'Metro', 'B']) || '').trim();
+        const team = String(getRowVal(row, ['Team Name', 'Team', 'C']) || '').trim();
+        const venueName = String(getRowVal(row, ['Venue Name', 'Venue', 'D']) || '').trim();
+        const venueCity = String(getRowVal(row, ['Venue City', 'City', 'E']) || '').trim();
+        
+        const rawLat = getRowVal(row, ['Latitude', 'Lat', 'F']);
+        const rawLng = getRowVal(row, ['Longitude', 'Lng', 'Lon', 'G']);
+        const lat = typeof rawLat === 'number' ? rawLat : parseFloat(rawLat);
+        const lng = typeof rawLng === 'number' ? rawLng : parseFloat(rawLng);
 
         if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
 
@@ -691,8 +691,7 @@
     };
 
     function loadGoogleSheetData() {
-      // Direct GViz request forcing full SQL selection across all rows
-      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}&tq=${encodeURIComponent('SELECT *')}`;
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}`;
       const script = document.createElement('script');
       script.src = gvizUrl;
       script.onerror = function() {
