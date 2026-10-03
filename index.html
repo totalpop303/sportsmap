@@ -710,15 +710,17 @@ L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
       updateMap();
     };
 
-    function loadGoogleSheetData() {
-      const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}`;
-      const script = document.createElement('script');
-      script.src = gvizUrl;
-      script.onerror = function() {
-        document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
-      };
-      document.body.appendChild(script);
-    }
+function loadGoogleSheetData() {
+  // Uses the published document key from your 'Publish to web' dialog
+  const gvizUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vSIGZl2kR-jnoUG-m5OYdhKKiln1ySaNGlj9CC4ASsYeG0Ax1aTyOrVf_v2zQ57bd6rSQ-uosiHE-v4/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=512966518`;
+  
+  const script = document.createElement('script');
+  script.src = gvizUrl;
+  script.onerror = function() {
+    document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
+  };
+  document.body.appendChild(script);
+}
 
     // Event Listeners
     document.addEventListener('change', function(e) {
