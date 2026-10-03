@@ -301,7 +301,6 @@
     const venueLayer = L.layerGroup().addTo(map);
 
     let venues = [];
-    let metroCenters = {};
     let activeMetro = null;
     let refreshInProgress = false;
     let initialFitDone = false;
@@ -354,12 +353,8 @@
 
       const metroTeamsMap = {};
       const metroVenuesMap = {};
-      Object.keys(metroCenters).forEach(m => {
-        metroTeamsMap[m] = [];
-        metroVenuesMap[m] = [];
-      });
-
       const activeVenuesList = [];
+
       venues.forEach(v => {
         const activeTeamsAtVenue = v.teams.filter(t => selectedLeagues.has(t.league));
         if (activeTeamsAtVenue.length > 0) {
@@ -454,10 +449,10 @@
         `);
       });
 
-      // Plot Metros
+      // Plot Metros Dynamically Calculated
       const placedMetroLabelBoxes = [];
 
-      Object.keys(metroCenters).forEach(mName => {
+      Object.keys(metroTeamsMap).forEach(mName => {
         const activeTeamList = metroTeamsMap[mName] || [];
         const activeVenueList = metroVenuesMap[mName] || [];
         const teamCount = activeTeamList.length;
@@ -477,13 +472,19 @@
           `;
 
           let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+          let sumLat = 0, sumLng = 0;
+
           activeVenueList.forEach(v => {
             const [lat, lng] = v.coords;
             if (lat < minLat) minLat = lat;
             if (lat > maxLat) maxLat = lat;
             if (lng < minLng) minLng = lng;
             if (lng > maxLng) maxLng = lng;
+            sumLat += lat;
+            sumLng += lng;
           });
+
+          const centerPt = [sumLat / activeVenueList.length, sumLng / activeVenueList.length];
 
           const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
           const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
@@ -499,7 +500,7 @@
             if (activeVenueList.length > 1) {
               map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 12, duration: 0.9 });
             } else {
-              map.flyTo(metroCenters[mName], 11, { duration: 0.9 });
+              map.flyTo(centerPt, 11, { duration: 0.9 });
             }
           };
 
@@ -510,7 +511,7 @@
               html: `<div class="metro-box ${tierClass}">${mName} (${teamCount})</div>`,
               iconSize: null
             });
-            marker = L.marker(metroCenters[mName], { 
+            marker = L.marker(centerPt, { 
               icon: metroIcon,
               pane: 'metroBadgePane'
             }).addTo(metroLayer);
@@ -649,13 +650,12 @@
       const rawRows = response.table.rows.map(r => {
         let rowObj = {};
         r.c.forEach((cell, idx) => {
-          rowObj[cols[idx]] = cell ? (cell.v !== null ? cell.v : '') : '';
+          rowObj[cols[idx]] = cell ? (cell.v !== null ? String(cell.v).trim() : '') : '';
         });
         return rowObj;
       });
 
       const venueMap = {};
-      const metroSumCoords = {};
 
       rawRows.forEach(row => {
         const league = String(row['League'] || '').trim();
@@ -679,23 +679,9 @@
           };
         }
         venueMap[venueKey].teams.push({ league: league, name: team });
-
-        if (!metroSumCoords[metro]) {
-          metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
-        }
-        metroSumCoords[metro].sumLat += lat;
-        metroSumCoords[metro].sumLng += lng;
-        metroSumCoords[metro].count += 1;
       });
 
       venues = Object.values(venueMap);
-      metroCenters = {};
-      Object.keys(metroSumCoords).forEach(m => {
-        metroCenters[m] = [
-          metroSumCoords[m].sumLat / metroSumCoords[m].count,
-          metroSumCoords[m].sumLng / metroSumCoords[m].count
-        ];
-      });
 
       const banner = document.getElementById('status-banner');
       document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
