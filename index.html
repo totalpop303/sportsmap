@@ -149,15 +149,28 @@
       border-radius: 50%;
       font-weight: 800;
       font-size: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
       cursor: pointer;
       transform: translate(-50%, -50%);
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
     .metro-circle-badge:hover {
-      transform: translate(-50%, -50%) scale(1.2);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+      transform: translate(-50%, -50%) scale(1.25);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
       z-index: 9999 !important;
+    }
+
+    /* Metro Hover Tooltip */
+    .metro-tooltip {
+      background: rgba(15, 23, 42, 0.92) !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      border-radius: 6px !important;
+      color: #ffffff !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      padding: 4px 8px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+      white-space: nowrap !important;
     }
 
     /* Zoomed-In Offset Header Badge */
@@ -183,10 +196,10 @@
     }
 
     /* Monochromatic Blue Gradient Tiers */
-    .metro-tier-1 { background: linear-gradient(135deg, #e0f2fe, #bae6fd); color: #0c4a6e; border: 1px solid #7dd3fc; }
-    .metro-tier-2 { background: linear-gradient(135deg, #7dd3fc, #38bdf8); color: #082f49; border: 1px solid #0284c7; }
-    .metro-tier-3 { background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: 1px solid #bae6fd; }
-    .metro-tier-4 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); color: #ffffff; border: 1px solid #93c5fd; }
+    .metro-tier-1 { background: linear-gradient(135deg, #e0f2fe, #bae6fd); color: #0c4a6e; border: 1.5px solid #ffffff; }
+    .metro-tier-2 { background: linear-gradient(135deg, #7dd3fc, #38bdf8); color: #082f49; border: 1.5px solid #ffffff; }
+    .metro-tier-3 { background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: 1.5px solid #ffffff; }
+    .metro-tier-4 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); color: #ffffff; border: 1.5px solid #ffffff; }
     .metro-tier-5 { background: linear-gradient(135deg, #0f2b5c, #051329); color: #ffffff; border: 1.5px solid #93c5fd; box-shadow: 0 2px 8px rgba(5, 19, 41, 0.6); }
 
     /* Close-up Collision-Free Venue Tooltip */
@@ -251,16 +264,16 @@
       maxZoom: 18
     });
 
-    // Initialize Map
+    // Initialize Map defaulting to OpenStreetMap
     const map = L.map('map', { 
       zoomControl: true,
-      layers: [esriGray]
+      layers: [osmStandard]
     }).setView([39.8283, -98.5795], 4);
 
     // Basemap Selector Control
     const baseMaps = {
-      "Light Gray Canvas": esriGray,
       "OpenStreetMap": osmStandard,
+      "Light Gray Canvas": esriGray,
       "Satellite Imagery": esriSatellite
     };
     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
@@ -401,7 +414,6 @@
           </a>
         `;
 
-        // Bind Popup without AutoPan so it doesn't close on map movements
         marker.bindPopup(popupMarkup, { autoPan: false });
 
         const handleVenueZoom = function(e) {
@@ -410,7 +422,6 @@
           const targetZoom = Math.max(map.getZoom(), 15);
           map.flyTo(v.coords, targetZoom, { duration: 0.8 });
           
-          // Open popup after flyTo animation resolves to keep it stable
           setTimeout(() => {
             marker.openPopup();
           }, 850);
@@ -522,13 +533,21 @@
           if (isOverview) {
             const metroIcon = L.divIcon({
               className: 'metro-box-icon',
-              html: `<div class="metro-circle-badge ${tierClass}" title="${mName}: ${teamCount} teams">${teamCount}</div>`,
+              html: `<div class="metro-circle-badge ${tierClass}">${teamCount}</div>`,
               iconSize: null
             });
             marker = L.marker(metroCenters[mName], { 
               icon: metroIcon,
               pane: 'metroBadgePane'
             }).addTo(metroLayer);
+
+            // Add instant hover tooltip for National View circles
+            marker.bindTooltip(`<b>${mName}</b><br><span style="font-size:10px; opacity:0.8;">${teamCount} Active Teams</span>`, {
+              className: 'metro-tooltip',
+              direction: 'top',
+              offset: [0, -12],
+              opacity: 0.95
+            });
 
             marker.bindPopup(popupContent, { autoPan: false });
             marker.on('click', handleMetroClick);
