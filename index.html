@@ -59,7 +59,12 @@
       box-shadow: 0 0 6px #22c55e;
     }
 
-    /* Dashboard Container */
+    /* Dashboard Container & Attribution Offset */
+    .leaflet-bottom.leaflet-left {
+      bottom: 28px !important;
+      left: 10px !important;
+    }
+
     .dashboard-container {
       display: flex;
       flex-direction: column;
@@ -83,6 +88,23 @@
       max-height: 45vh;
       overflow-y: auto;
     }
+
+    .filter-toggle-btn {
+      display: none;
+      width: 100%;
+      background: #0f172a;
+      color: #ffffff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      justify-content: space-between;
+      align-items: center;
+    }
+
     .card-title {
       font-weight: 800;
       font-size: 11px;
@@ -229,8 +251,21 @@
     @media (max-width: 600px) {
       #top-header { font-size: 13px; padding: 6px 14px; }
       #status-banner { top: 46px; font-size: 9px; }
-      .dashboard-card { padding: 8px 10px; }
-      .filter-card { max-height: 38vh; }
+      .filter-card {
+        min-width: 140px;
+        padding: 6px 8px;
+        max-height: 50vh;
+      }
+      .filter-toggle-btn {
+        display: flex;
+      }
+      .filter-body {
+        display: none;
+        margin-top: 6px;
+      }
+      .filter-body.open {
+        display: block;
+      }
     }
   </style>
 </head>
@@ -278,11 +313,7 @@
     };
     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
-    // Track active basemap dynamically
     let activeBasemapLayer = osmStandard;
-
-    map.createPane('metroBoundaryPane');
-    map.getPane('metroBoundaryPane').style.zIndex = 350;
 
     map.createPane('leaderLinePane');
     map.getPane('leaderLinePane').style.zIndex = 450;
@@ -293,7 +324,6 @@
     map.createPane('metroBadgePane');
     map.getPane('metroBadgePane').style.zIndex = 650;
 
-    const metroBoundaryLayer = L.layerGroup().addTo(map);
     const leaderLineLayer = L.layerGroup().addTo(map);
     const metroLayer = L.layerGroup().addTo(map);
     const venueLayer = L.layerGroup().addTo(map);
@@ -302,6 +332,7 @@
     let metroCenters = {};
     let activeMetro = null;
     let activeVenueKey = null;
+    let lastZoomedMetro = null;
     let refreshInProgress = false;
     let initialFitDone = false;
 
@@ -325,7 +356,6 @@
       return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2);
     }
 
-    // Dynamic Basemap Switch based on Zoom Level
     function updateBasemapForZoom() {
       const currentZoom = map.getZoom();
       let targetLayer = currentZoom <= 6 ? osmStandard : esriSatellite;
@@ -342,12 +372,37 @@
     function resetToDefaultView() {
       activeVenueKey = null;
       activeMetro = null;
+      lastZoomedMetro = null;
       const activeCoords = venues.map(v => v.coords);
       if (activeCoords.length > 0) {
         const bounds = L.latLngBounds(activeCoords);
         map.fitBounds(bounds, { padding: [30, 30] });
       } else {
         map.setView([39.8283, -98.5795], 4);
+      }
+    }
+
+    function zoomToMetroArea(mName) {
+      const mVenues = venues.filter(v => v.metro === mName);
+      if (mVenues.length === 0) return;
+
+      if (mVenues.length > 1) {
+        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+        mVenues.forEach(v => {
+          const [lat, lng] = v.coords;
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+        });
+        const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
+        const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
+        map.flyToBounds([
+          [minLat - latPad, minLng - lngPad],
+          [maxLat + latPad, maxLng + lngPad]
+        ], { padding: [40, 40], maxZoom: 12, duration: 0.8 });
+      } else {
+        map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
       }
     }
 
@@ -361,7 +416,6 @@
       );
 
       refreshInProgress = true;
-      metroBoundaryLayer.clearLayers();
       leaderLineLayer.clearLayers();
       metroLayer.clearLayers();
       venueLayer.clearLayers();
@@ -396,7 +450,147 @@
         resetToDefaultView();
       }
 
-      // Plot Venues
+      // First Pass: Plot Metros to capture Metro Header Badge boxes for collision padding
+      const placedMetroLabelBoxes = [];
+      const metroMarkersToRender = [];
+
+      Object.keys(metroCenters).forEach(mName => {
+        const activeTeamList = metroTeamsMap[mName] || [];
+        const activeVenueList = metroVenuesMap[mName] || [];
+        const teamCount = activeTeamList.length;
+
+        if (teamCount > 0) {
+          const tierClass = getTeamTierClass(teamCount);
+          const tierColor = getTierColor(teamCount);
+
+          const teamListHtml = activeTeamList.map(t => 
+            `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b> <span class="venue-name-sub">(${t.venue})</span></div>`
+          ).join('');
+
+          const popupContent = `
+            <div class="popup-title">${mName}</div>
+            <div class="popup-subtitle">Total Teams Active: <b>${teamCount}</b></div>
+            ${teamListHtml}
+          `;
+
+          let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+          activeVenueList.forEach(v => {
+            const [lat, lng] = v.coords;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+          });
+
+          const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
+          const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
+
+          const handleMetroClick = function(e) {
+            L.DomEvent.stopPropagation(e);
+            activeVenueKey = null;
+
+            if (activeMetro !== mName) {
+              activeMetro = mName;
+              lastZoomedMetro = mName;
+              zoomToMetroArea(mName);
+            } else {
+              marker.openPopup();
+            }
+          };
+
+          let marker;
+          if (isOverview) {
+            const metroIcon = L.divIcon({
+              className: 'metro-box-icon',
+              html: `<div class="metro-circle-badge ${tierClass}">${teamCount}</div>`,
+              iconSize: null
+            });
+            marker = L.marker(metroCenters[mName], { 
+              icon: metroIcon,
+              pane: 'metroBadgePane'
+            }).addTo(metroLayer);
+
+            marker.bindTooltip(`<b>${mName}</b><br><span style="font-size:10px; opacity:0.8;">${teamCount} Active Teams</span>`, {
+              className: 'metro-tooltip',
+              direction: 'top',
+              offset: [0, -12],
+              opacity: 0.95
+            });
+
+            marker.bindPopup(popupContent, { autoPan: false });
+            marker.on('click', handleMetroClick);
+          } else {
+            const anchorLatLng = [maxLat + latPad, (minLng + maxLng) / 2];
+            const anchorPt = map.latLngToLayerPoint(anchorLatLng);
+
+            const labelText = `${mName} (${teamCount})`;
+            const estBoxWidth = labelText.length * 7 + 24;
+            const estBoxHeight = 28;
+
+            const offsets = [
+              [0, 0], [-24, 0], [24, 0], [0, 35], [0, -35],
+              [-30, 40], [-30, -40], [30, 40], [30, -40]
+            ];
+
+            let chosenOffset = offsets[0];
+            let labelCenterPt = { x: anchorPt.x + chosenOffset[1], y: anchorPt.y + chosenOffset[0] };
+
+            for (let off of offsets) {
+              const candidatePt = { x: anchorPt.x + off[1], y: anchorPt.y + off[0] };
+              const box = {
+                x1: candidatePt.x - estBoxWidth / 2 - 12,
+                y1: candidatePt.y - estBoxHeight / 2 - 12,
+                x2: candidatePt.x + estBoxWidth / 2 + 12,
+                y2: candidatePt.y + estBoxHeight / 2 + 12
+              };
+
+              let collision = false;
+              for (let existing of placedMetroLabelBoxes) {
+                if (checkOverlap(box, existing)) {
+                  collision = true;
+                  break;
+                }
+              }
+
+              if (!collision) {
+                chosenOffset = off;
+                labelCenterPt = candidatePt;
+                placedMetroLabelBoxes.push(box);
+                break;
+              }
+            }
+
+            const finalLatLng = map.layerPointToLatLng(labelCenterPt);
+
+            // Hide header badge leader lines when zoomed in very close to individual venues
+            if (currentZoom < 11 && (chosenOffset[0] !== 0 || chosenOffset[1] !== 0)) {
+              L.polyline([anchorLatLng, finalLatLng], {
+                pane: 'leaderLinePane',
+                color: tierColor,
+                weight: 1.5,
+                dashArray: '2, 3',
+                opacity: 0.8
+              }).addTo(leaderLineLayer);
+            }
+
+            const headerIcon = L.divIcon({
+              className: 'metro-box-icon',
+              html: `<div class="metro-header-box ${tierClass}">${labelText}</div>`,
+              iconSize: null
+            });
+
+            marker = L.marker(finalLatLng, { 
+              icon: headerIcon,
+              pane: 'metroBadgePane'
+            }).addTo(metroLayer);
+
+            marker.bindPopup(popupContent, { autoPan: false });
+            marker.on('click', handleMetroClick);
+          }
+        }
+      });
+
+      // Plot Venues with Expanded Radial Collision Padding
       const placedVenueBoxes = [];
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
@@ -438,6 +632,7 @@
         const handleVenueZoom = function(e) {
           L.DomEvent.stopPropagation(e);
           activeVenueKey = v.venue;
+          lastZoomedMetro = v.metro;
           const targetZoom = Math.max(map.getZoom(), 15);
           map.flyTo(v.coords, targetZoom, { duration: 0.8 });
           
@@ -454,23 +649,38 @@
 
         if (!isOverview) {
           const pt = map.latLngToLayerPoint(v.coords);
-          const estWidth = Math.max(v.venue.length, shortTeamSummary.length) * 6.8 + 16;
-          const estHeight = 32;
+          const estWidth = Math.max(v.venue.length, shortTeamSummary.length) * 6.8 + 20;
+          const estHeight = 36;
 
+          // 8 Radial Directions with extra buffer padding so tooltips push away from each other and metro badges
           const candidates = [
-            { dir: 'top',    offset: [0, -8],   box: { x1: pt.x - estWidth / 2, y1: pt.y - 8 - estHeight, x2: pt.x + estWidth / 2, y2: pt.y - 8 } },
-            { dir: 'right',  offset: [10, 0],   box: { x1: pt.x + 10, y1: pt.y - estHeight / 2, x2: pt.x + 10 + estWidth, y2: pt.y + estHeight / 2 } },
-            { dir: 'bottom', offset: [0, 8],    box: { x1: pt.x - estWidth / 2, y1: pt.y + 8, x2: pt.x + estWidth / 2, y2: pt.y + 8 + estHeight } },
-            { dir: 'left',   offset: [-10, 0],  box: { x1: pt.x - 10 - estWidth, y1: pt.y - estHeight / 2, x2: pt.x - 10, y2: pt.y + estHeight / 2 } }
+            { dir: 'top',    offset: [0, -10],  box: { x1: pt.x - estWidth / 2 - 6, y1: pt.y - 10 - estHeight - 6, x2: pt.x + estWidth / 2 + 6, y2: pt.y - 10 + 6 } },
+            { dir: 'right',  offset: [12, 0],   box: { x1: pt.x + 12 - 6, y1: pt.y - estHeight / 2 - 6, x2: pt.x + 12 + estWidth + 6, y2: pt.y + estHeight / 2 + 6 } },
+            { dir: 'bottom', offset: [0, 10],   box: { x1: pt.x - estWidth / 2 - 6, y1: pt.y + 10 - 6, x2: pt.x + estWidth / 2 + 6, y2: pt.y + 10 + estHeight + 6 } },
+            { dir: 'left',   offset: [-12, 0],  box: { x1: pt.x - 12 - estWidth - 6, y1: pt.y - estHeight / 2 - 6, x2: pt.x - 12 + 6, y2: pt.y + estHeight / 2 + 6 } },
+            { dir: 'top',    offset: [14, -10], box: { x1: pt.x + 14 - estWidth / 2, y1: pt.y - 10 - estHeight, x2: pt.x + 14 + estWidth / 2, y2: pt.y - 10 } },
+            { dir: 'top',    offset: [-14, -10],box: { x1: pt.x - 14 - estWidth / 2, y1: pt.y - 10 - estHeight, x2: pt.x - 14 + estWidth / 2, y2: pt.y - 10 } },
+            { dir: 'bottom', offset: [14, 10],  box: { x1: pt.x + 14 - estWidth / 2, y1: pt.y + 10, x2: pt.x + 14 + estWidth / 2, y2: pt.y + 10 + estHeight } },
+            { dir: 'bottom', offset: [-14, 10], box: { x1: pt.x - 14 - estWidth / 2, y1: pt.y + 10, x2: pt.x - 14 + estWidth / 2, y2: pt.y + 10 + estHeight } }
           ];
 
           let chosen = null;
           for (let cand of candidates) {
             let collision = false;
+            // Check collision with other venue tooltips
             for (let existing of placedVenueBoxes) {
               if (checkOverlap(cand.box, existing)) {
                 collision = true;
                 break;
+              }
+            }
+            // Check collision with metro header badge boxes
+            if (!collision) {
+              for (let metroBox of placedMetroLabelBoxes) {
+                if (checkOverlap(cand.box, metroBox)) {
+                  collision = true;
+                  break;
+                }
               }
             }
             if (!collision) {
@@ -498,167 +708,10 @@
         }
       });
 
-      // Plot Metros
-      const placedMetroLabelBoxes = [];
-
-      Object.keys(metroCenters).forEach(mName => {
-        const activeTeamList = metroTeamsMap[mName] || [];
-        const activeVenueList = metroVenuesMap[mName] || [];
-        const teamCount = activeTeamList.length;
-
-        if (teamCount > 0) {
-          const tierClass = getTeamTierClass(teamCount);
-          const tierColor = getTierColor(teamCount);
-
-          const teamListHtml = activeTeamList.map(t => 
-            `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b> <span class="venue-name-sub">(${t.venue})</span></div>`
-          ).join('');
-
-          const popupContent = `
-            <div class="popup-title">${mName}</div>
-            <div class="popup-subtitle">Total Teams Active: <b>${teamCount}</b></div>
-            ${teamListHtml}
-          `;
-
-          let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-          activeVenueList.forEach(v => {
-            const [lat, lng] = v.coords;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-          });
-
-          const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
-          const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
-
-          const bounds = [
-            [minLat - latPad, minLng - lngPad],
-            [maxLat + latPad, maxLng + lngPad]
-          ];
-
-          const handleMetroClick = function(e) {
-            L.DomEvent.stopPropagation(e);
-            activeVenueKey = null;
-
-            if (activeMetro !== mName) {
-              activeMetro = mName;
-              if (activeVenueList.length > 1) {
-                map.flyToBounds(bounds, { padding: [30, 30], maxZoom: 12, duration: 0.8 });
-              } else {
-                map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
-              }
-            } else {
-              marker.openPopup();
-            }
-          };
-
-          let marker;
-          if (isOverview) {
-            const metroIcon = L.divIcon({
-              className: 'metro-box-icon',
-              html: `<div class="metro-circle-badge ${tierClass}">${teamCount}</div>`,
-              iconSize: null
-            });
-            marker = L.marker(metroCenters[mName], { 
-              icon: metroIcon,
-              pane: 'metroBadgePane'
-            }).addTo(metroLayer);
-
-            marker.bindTooltip(`<b>${mName}</b><br><span style="font-size:10px; opacity:0.8;">${teamCount} Active Teams</span>`, {
-              className: 'metro-tooltip',
-              direction: 'top',
-              offset: [0, -12],
-              opacity: 0.95
-            });
-
-            marker.bindPopup(popupContent, { autoPan: false });
-            marker.on('click', handleMetroClick);
-          } else {
-            L.rectangle(bounds, {
-              pane: 'metroBoundaryPane',
-              interactive: false,
-              color: tierColor,
-              weight: 1.5,
-              opacity: 0.55,
-              fillColor: tierColor,
-              fillOpacity: 0.08,
-              dashArray: '4, 4'
-            }).addTo(metroBoundaryLayer);
-
-            const anchorLatLng = [maxLat + latPad, (minLng + maxLng) / 2];
-            const anchorPt = map.latLngToLayerPoint(anchorLatLng);
-
-            const labelText = `${mName} (${teamCount})`;
-            const estBoxWidth = labelText.length * 7 + 16;
-            const estBoxHeight = 22;
-
-            const offsets = [
-              [0, 0], [-24, 0], [24, 0], [0, 35], [0, -35],
-              [-30, 40], [-30, -40], [30, 40], [30, -40]
-            ];
-
-            let chosenOffset = offsets[0];
-            let labelCenterPt = { x: anchorPt.x + chosenOffset[1], y: anchorPt.y + chosenOffset[0] };
-
-            for (let off of offsets) {
-              const candidatePt = { x: anchorPt.x + off[1], y: anchorPt.y + off[0] };
-              const box = {
-                x1: candidatePt.x - estBoxWidth / 2,
-                y1: candidatePt.y - estBoxHeight / 2,
-                x2: candidatePt.x + estBoxWidth / 2,
-                y2: candidatePt.y + estBoxHeight / 2
-              };
-
-              let collision = false;
-              for (let existing of placedMetroLabelBoxes) {
-                if (checkOverlap(box, existing)) {
-                  collision = true;
-                  break;
-                }
-              }
-
-              if (!collision) {
-                chosenOffset = off;
-                labelCenterPt = candidatePt;
-                placedMetroLabelBoxes.push(box);
-                break;
-              }
-            }
-
-            const finalLatLng = map.layerPointToLatLng(labelCenterPt);
-
-            if (chosenOffset[0] !== 0 || chosenOffset[1] !== 0) {
-              L.polyline([anchorLatLng, finalLatLng], {
-                pane: 'leaderLinePane',
-                color: tierColor,
-                weight: 1.5,
-                dashArray: '2, 3',
-                opacity: 0.8
-              }).addTo(leaderLineLayer);
-            }
-
-            const headerIcon = L.divIcon({
-              className: 'metro-box-icon',
-              html: `<div class="metro-header-box ${tierClass}">${labelText}</div>`,
-              iconSize: null
-            });
-
-            marker = L.marker(finalLatLng, { 
-              icon: headerIcon,
-              pane: 'metroBadgePane'
-            }).addTo(metroLayer);
-
-            marker.bindPopup(popupContent, { autoPan: false });
-            marker.on('click', handleMetroClick);
-          }
-        }
-      });
-
       refreshInProgress = false;
     }
 
-    // Dashboard Controls
+    // Collapsible Mobile Dashboard Control
     const dashboardControl = L.control({ position: 'bottomleft' });
     dashboardControl.onAdd = function() {
       const container = L.DomUtil.create('div', 'dashboard-container');
@@ -676,14 +729,20 @@
       `).join('');
 
       filterCard.innerHTML = `
-        <div class="card-title">Filter Leagues</div>
-        <div class="filter-actions">
-          <button class="btn-action" id="btn-select-all">All</button>
-          <button class="btn-action" id="btn-big-four">Big 4</button>
-          <button class="btn-action" id="btn-select-none">None</button>
+        <button class="filter-toggle-btn" id="btn-toggle-filters">
+          <span>FILTER LEAGUES</span>
+          <span id="toggle-arrow">▾</span>
+        </button>
+        <div class="filter-body" id="filter-body-container">
+          <div class="card-title">Filter Leagues</div>
+          <div class="filter-actions">
+            <button class="btn-action" id="btn-select-all">All</button>
+            <button class="btn-action" id="btn-big-four">Big 4</button>
+            <button class="btn-action" id="btn-select-none">None</button>
+          </div>
+          <div class="league-grid">${checkboxesHtml}</div>
+          <button class="btn-action btn-reset" id="btn-reset-view">Reset Zoom</button>
         </div>
-        <div class="league-grid">${checkboxesHtml}</div>
-        <button class="btn-action btn-reset" id="btn-reset-view">Reset Zoom</button>
       `;
 
       L.DomEvent.disableClickPropagation(container);
@@ -821,18 +880,24 @@
         updateMap();
       } else if (e.target.id === 'btn-reset-view') {
         resetToDefaultView();
+      } else if (e.target.id === 'btn-toggle-filters' || e.target.closest('#btn-toggle-filters')) {
+        const body = document.getElementById('filter-body-container');
+        const arrow = document.getElementById('toggle-arrow');
+        body.classList.toggle('open');
+        arrow.textContent = body.classList.contains('open') ? '▴' : '▾';
       }
     });
 
-    // Track user manually changing basemap via Layer Control
-    map.on('baselayerchange', (e) => {
-      activeBasemapLayer = e.layer;
-    });
-
+    // Zoom back out to metro level when clicking away or closing a venue pop-up
     map.on('popupclose', () => {
       if (!refreshInProgress) {
-        activeMetro = null;
-        activeVenueKey = null;
+        if (activeVenueKey && lastZoomedMetro) {
+          activeVenueKey = null;
+          zoomToMetroArea(lastZoomedMetro);
+        } else {
+          activeMetro = null;
+          activeVenueKey = null;
+        }
       }
     });
 
