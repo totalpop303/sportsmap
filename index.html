@@ -400,7 +400,7 @@
         map.flyToBounds([
           [minLat - latPad, minLng - lngPad],
           [maxLat + latPad, maxLng + lngPad]
-        ], { padding: [40, 40], maxZoom: 12, duration: 0.8 });
+        ], { padding: [30, 30], maxZoom: 12, duration: 0.8 });
       } else {
         map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
       }
@@ -450,9 +450,7 @@
         resetToDefaultView();
       }
 
-      // First Pass: Plot Metros to capture Metro Header Badge boxes for collision padding
       const placedMetroLabelBoxes = [];
-      const metroMarkersToRender = [];
 
       Object.keys(metroCenters).forEach(mName => {
         const activeTeamList = metroTeamsMap[mName] || [];
@@ -517,7 +515,11 @@
               opacity: 0.95
             });
 
-            marker.bindPopup(popupContent, { autoPan: false });
+            // Smooth autoPan prevents pop-up clipping at the top without altering target zoom
+            marker.bindPopup(popupContent, { 
+              autoPan: true,
+              autoPanPadding: [60, 20]
+            });
             marker.on('click', handleMetroClick);
           } else {
             const anchorLatLng = [maxLat + latPad, (minLng + maxLng) / 2];
@@ -562,7 +564,6 @@
 
             const finalLatLng = map.layerPointToLatLng(labelCenterPt);
 
-            // Hide header badge leader lines when zoomed in very close to individual venues
             if (currentZoom < 11 && (chosenOffset[0] !== 0 || chosenOffset[1] !== 0)) {
               L.polyline([anchorLatLng, finalLatLng], {
                 pane: 'leaderLinePane',
@@ -584,13 +585,16 @@
               pane: 'metroBadgePane'
             }).addTo(metroLayer);
 
-            marker.bindPopup(popupContent, { autoPan: false });
+            marker.bindPopup(popupContent, { 
+              autoPan: true,
+              autoPanPadding: [60, 20]
+            });
             marker.on('click', handleMetroClick);
           }
         }
       });
 
-      // Plot Venues with Expanded Radial Collision Padding
+      // Plot Venues
       const placedVenueBoxes = [];
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
@@ -652,7 +656,6 @@
           const estWidth = Math.max(v.venue.length, shortTeamSummary.length) * 6.8 + 20;
           const estHeight = 36;
 
-          // 8 Radial Directions with extra buffer padding so tooltips push away from each other and metro badges
           const candidates = [
             { dir: 'top',    offset: [0, -10],  box: { x1: pt.x - estWidth / 2 - 6, y1: pt.y - 10 - estHeight - 6, x2: pt.x + estWidth / 2 + 6, y2: pt.y - 10 + 6 } },
             { dir: 'right',  offset: [12, 0],   box: { x1: pt.x + 12 - 6, y1: pt.y - estHeight / 2 - 6, x2: pt.x + 12 + estWidth + 6, y2: pt.y + estHeight / 2 + 6 } },
@@ -667,14 +670,12 @@
           let chosen = null;
           for (let cand of candidates) {
             let collision = false;
-            // Check collision with other venue tooltips
             for (let existing of placedVenueBoxes) {
               if (checkOverlap(cand.box, existing)) {
                 collision = true;
                 break;
               }
             }
-            // Check collision with metro header badge boxes
             if (!collision) {
               for (let metroBox of placedMetroLabelBoxes) {
                 if (checkOverlap(cand.box, metroBox)) {
@@ -888,7 +889,6 @@
       }
     });
 
-    // Zoom back out to metro level when clicking away or closing a venue pop-up
     map.on('popupclose', () => {
       if (!refreshInProgress) {
         if (activeVenueKey && lastZoomedMetro) {
