@@ -400,7 +400,7 @@
         map.flyToBounds([
           [minLat - latPad, minLng - lngPad],
           [maxLat + latPad, maxLng + lngPad]
-        ], { padding: [40, 40], maxZoom: 12, duration: 0.8 });
+        ], { padding: [30, 30], maxZoom: 12, duration: 0.8 });
       } else {
         map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
       }
@@ -515,11 +515,10 @@
               opacity: 0.95
             });
 
-            // Position pop-up downwards below circle badges
+            // Smooth autoPan prevents pop-up clipping at the top without altering target zoom
             marker.bindPopup(popupContent, { 
               autoPan: true,
-              direction: 'bottom',
-              offset: [0, 18]
+              autoPanPadding: [60, 20]
             });
             marker.on('click', handleMetroClick);
           } else {
@@ -586,18 +585,16 @@
               pane: 'metroBadgePane'
             }).addTo(metroLayer);
 
-            // Position pop-up downwards below header badges when zoomed in
             marker.bindPopup(popupContent, { 
               autoPan: true,
-              direction: 'bottom',
-              offset: [0, 16]
+              autoPanPadding: [60, 20]
             });
             marker.on('click', handleMetroClick);
           }
         }
       });
 
-      // Plot Venues with Expanded Radial Collision Padding
+      // Plot Venues
       const placedVenueBoxes = [];
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
