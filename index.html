@@ -7,8 +7,20 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    #map { height: 100vh; width: 100vw; }
+    html, body { 
+      margin: 0; 
+      padding: 0; 
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+    }
+
+    /* Fix Chrome mobile viewport height issue (#3) */
+    #map { 
+      height: 100vh; 
+      height: 100dvh; 
+      width: 100vw; 
+    }
 
     /* Top Title Header */
     #top-header {
@@ -82,7 +94,7 @@
       box-sizing: border-box;
     }
 
-    /* Filter Card with Quick Buttons Header & Dropdown Body */
+    /* Filter Card */
     .filter-card {
       min-width: 175px;
       max-height: 50vh;
@@ -101,9 +113,11 @@
     }
 
     .filter-actions { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+    
+    /* Quick Select Button Styling & Active Indicator (#1) */
     .btn-action {
       background: #f1f5f9;
-      border: 1px solid #cbd5e1;
+      border: 1.5px solid #cbd5e1;
       border-radius: 4px;
       padding: 3px 8px;
       font-size: 10px;
@@ -114,14 +128,22 @@
       touch-action: manipulation;
     }
     .btn-action:hover { background: #e2e8f0; color: #0f172a; }
-    .btn-reset {
+    .btn-action.active {
       background: #0284c7;
       color: #ffffff;
-      border: 1px solid #0369a1;
+      border-color: #0369a1;
+      font-weight: 700;
+      box-shadow: 0 0 0 1.5px rgba(2, 132, 199, 0.4);
+    }
+
+    .btn-reset {
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #cbd5e1;
       width: 100%;
       margin-top: 8px;
     }
-    .btn-reset:hover { background: #0369a1; color: #ffffff; }
+    .btn-reset:hover { background: #e2e8f0; color: #0f172a; }
 
     /* HTML Details / Summary Dropdown */
     .league-dropdown {
@@ -219,7 +241,7 @@
     .metro-tier-4 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); color: #ffffff; border: 1.5px solid #ffffff; }
     .metro-tier-5 { background: linear-gradient(135deg, #0f2b5c, #051329); color: #ffffff; border: 1.5px solid #93c5fd; box-shadow: 0 2px 8px rgba(5, 19, 41, 0.6); }
 
-    /* Close-up Venue Tooltip */
+    /* Close-up Venue Tooltip (#2 Native Smart Placement) */
     .venue-tooltip {
       background: rgba(255, 255, 255, 0.95);
       border: 1px solid #cbd5e1;
@@ -313,6 +335,30 @@
       }
     }
 
+    function updateFilterButtonState() {
+      const allCheckboxes = Array.from(document.querySelectorAll('.league-checkbox'));
+      const checkedValues = new Set(allCheckboxes.filter(cb => cb.checked).map(cb => cb.value));
+      const bigFour = new Set(['NFL', 'MLB', 'NBA', 'NHL']);
+
+      const btnAll = document.getElementById('btn-select-all');
+      const btnBig4 = document.getElementById('btn-big-four');
+      const btnNone = document.getElementById('btn-select-none');
+
+      if (!btnAll || !btnBig4 || !btnNone) return;
+
+      btnAll.classList.remove('active');
+      btnBig4.classList.remove('active');
+      btnNone.classList.remove('active');
+
+      if (checkedValues.size === 0) {
+        btnNone.classList.add('active');
+      } else if (checkedValues.size === allCheckboxes.length) {
+        btnAll.classList.add('active');
+      } else if (checkedValues.size === 4 && [...bigFour].every(v => checkedValues.has(v))) {
+        btnBig4.classList.add('active');
+      }
+    }
+
     function resetToDefaultView() {
       activeVenueKey = null;
       activeMetro = null;
@@ -327,7 +373,7 @@
 
       if (activeCoords.length > 0) {
         const bounds = L.latLngBounds(activeCoords);
-        map.fitBounds(bounds, { padding: [30, 30] });
+        map.fitBounds(bounds, { padding: [40, 40] });
       } else {
         map.setView([39.8283, -98.5795], 4);
       }
@@ -338,7 +384,6 @@
         Array.from(document.querySelectorAll('.league-checkbox:checked')).map(cb => cb.value)
       );
 
-      // Filter venues strictly to those with active teams under the currently selected leagues
       const activeMetroVenues = venues.filter(v => 
         v.metro === mName && v.teams.some(t => selectedLeagues.has(t.league))
       );
@@ -357,6 +402,7 @@
       if (venues.length === 0) return;
 
       updateBasemapForZoom();
+      updateFilterButtonState();
 
       const selectedLeagues = new Set(
         Array.from(document.querySelectorAll('.league-checkbox:checked')).map(cb => cb.value)
@@ -450,7 +496,7 @@
         }
       });
 
-      // Plot Venues with Standard Tooltips
+      // Plot Venues with Native Direction Auto-Placement (#2)
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
         const activeTeams = item.activeTeams;
@@ -491,15 +537,14 @@
         if (!isOverview) {
           marker.bindTooltip(`<b>${v.venue}</b><br><span style="color:#64748b; font-size:10px;">${shortTeamSummary}</span>`, {
             permanent: true,
-            direction: 'top',
+            direction: 'auto',
             className: 'venue-tooltip',
-            offset: [0, -8],
+            offset: [0, -6],
             interactive: true
           });
         }
       });
 
-      // Dynamically re-adjust zoom to newly visible venues if focused on a metro area
       if (!isOverview && lastZoomedMetro) {
         zoomToMetroArea(lastZoomedMetro);
       }
@@ -507,7 +552,7 @@
       refreshInProgress = false;
     }
 
-    // Dashboard Control: Visible Quick Buttons Header + Dropdown Checkboxes Body
+    // Dashboard Control: Quick Filter Header + Dropdown
     const dashboardControl = L.control({ position: 'bottomleft' });
     dashboardControl.onAdd = function() {
       const container = L.DomUtil.create('div', 'dashboard-container');
@@ -527,7 +572,7 @@
         <div class="card-title">Filter Leagues</div>
         <div class="filter-actions">
           <button class="btn-action" id="btn-select-all">All</button>
-          <button class="btn-action" id="btn-big-four">Big 4</button>
+          <button class="btn-action active" id="btn-big-four">Big 4</button>
           <button class="btn-action" id="btn-select-none">None</button>
         </div>
         <details class="league-dropdown">
