@@ -678,15 +678,11 @@
       }
     });
 
-    map.on('popupclose', (e) => {
-      if (!refreshInProgress) {
-        // Only return to metro view if closing a venue popup, not when switching focus
-        if (e.popup && e.popup.options && e.popup.options.className === 'venue-popup-marker') {
-          activeVenueKey = null;
-          if (lastZoomedMetro) {
-            zoomToMetroArea(lastZoomedMetro);
-          }
-        }
+    // Zoom back out to metro area when clicking anywhere on the open map away from a venue
+    map.on('click', () => {
+      if (activeVenueKey && lastZoomedMetro) {
+        activeVenueKey = null;
+        zoomToMetroArea(lastZoomedMetro);
       }
     });
 
