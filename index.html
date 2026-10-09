@@ -15,7 +15,6 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
     }
 
-    /* Fix Chrome mobile viewport height issue (#3) */
     #map { 
       height: 100vh; 
       height: 100dvh; 
@@ -114,7 +113,6 @@
 
     .filter-actions { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
     
-    /* Quick Select Button Styling & Active Indicator (#1) */
     .btn-action {
       background: #f1f5f9;
       border: 1.5px solid #cbd5e1;
@@ -241,7 +239,7 @@
     .metro-tier-4 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); color: #ffffff; border: 1.5px solid #ffffff; }
     .metro-tier-5 { background: linear-gradient(135deg, #0f2b5c, #051329); color: #ffffff; border: 1.5px solid #93c5fd; box-shadow: 0 2px 8px rgba(5, 19, 41, 0.6); }
 
-    /* Close-up Venue Tooltip (#2 Native Smart Placement) */
+    /* Close-up Venue Tooltip */
     .venue-tooltip {
       background: rgba(255, 255, 255, 0.95);
       border: 1px solid #cbd5e1;
@@ -496,7 +494,7 @@
         }
       });
 
-      // Plot Venues with Native Direction Auto-Placement (#2)
+      // Plot Venues
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
         const activeTeams = item.activeTeams;
@@ -522,17 +520,18 @@
           <a href="${wikiUrl}" target="_blank" rel="noopener noreferrer" class="wiki-link">Wikipedia: ${v.venue} &rarr;</a>
         `;
 
-        marker.bindPopup(popupMarkup, { autoPan: false });
+        const venuePopup = L.popup({ autoPan: false, className: 'venue-popup-marker' }).setContent(popupMarkup);
+        marker.bindPopup(venuePopup);
 
-        const handleVenueZoom = function(e) {
+        const handleVenueClick = function(e) {
           L.DomEvent.stopPropagation(e);
           activeVenueKey = v.venue;
           lastZoomedMetro = v.metro;
           map.flyTo(v.coords, 15, { duration: 0.8 });
-          setTimeout(() => { marker.openPopup(); }, 850);
+          setTimeout(() => { marker.openPopup(); }, 350);
         };
 
-        marker.on('click', handleVenueZoom);
+        marker.on('click', handleVenueClick);
 
         if (!isOverview) {
           marker.bindTooltip(`<b>${v.venue}</b><br><span style="color:#64748b; font-size:10px;">${shortTeamSummary}</span>`, {
@@ -545,7 +544,7 @@
         }
       });
 
-      if (!isOverview && lastZoomedMetro) {
+      if (!isOverview && lastZoomedMetro && !activeVenueKey) {
         zoomToMetroArea(lastZoomedMetro);
       }
 
@@ -679,11 +678,14 @@
       }
     });
 
-    map.on('popupclose', () => {
+    map.on('popupclose', (e) => {
       if (!refreshInProgress) {
-        if (activeVenueKey && lastZoomedMetro) {
+        // Only return to metro view if closing a venue popup, not when switching focus
+        if (e.popup && e.popup.options && e.popup.options.className === 'venue-popup-marker') {
           activeVenueKey = null;
-          zoomToMetroArea(lastZoomedMetro);
+          if (lastZoomedMetro) {
+            zoomToMetroArea(lastZoomedMetro);
+          }
         }
       }
     });
