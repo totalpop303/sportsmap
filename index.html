@@ -485,6 +485,7 @@
           const latPad = Math.max((maxLat - minLat) * 0.15, 0.02);
           const lngPad = Math.max((maxLng - minLng) * 0.15, 0.02);
 
+          let marker;
           const handleMetroClick = function(e) {
             L.DomEvent.stopPropagation(e);
             activeVenueKey = null;
@@ -493,12 +494,11 @@
               activeMetro = mName;
               lastZoomedMetro = mName;
               zoomToMetroArea(mName);
-            } else {
+            } else if (marker) {
               marker.openPopup();
             }
           };
 
-          let marker;
           if (isOverview) {
             const metroIcon = L.divIcon({
               className: 'metro-box-icon',
