@@ -103,6 +103,7 @@
       text-align: left;
       justify-content: space-between;
       align-items: center;
+      margin-bottom: 4px;
     }
 
     .card-title {
@@ -252,19 +253,21 @@
       #top-header { font-size: 13px; padding: 6px 14px; }
       #status-banner { top: 46px; font-size: 9px; }
       .filter-card {
-        min-width: 140px;
-        padding: 6px 8px;
-        max-height: 50vh;
+        min-width: 150px;
+        padding: 8px 10px;
+        max-height: 55vh;
       }
       .filter-toggle-btn {
         display: flex;
       }
       .filter-body {
         display: none;
-        margin-top: 6px;
       }
       .filter-body.open {
         display: block;
+      }
+      .filter-card .card-title {
+        display: none;
       }
     }
   </style>
@@ -396,13 +399,11 @@
           if (lng > maxLng) maxLng = lng;
         });
 
-        // Tighter padding and higher maxZoom for close-up metro zoom
         map.flyToBounds([
           [minLat, minLng],
           [maxLat, maxLng]
         ], { padding: [10, 10], maxZoom: 15, duration: 0.8 });
       } else {
-        // Tighter single-venue zoom level
         map.flyTo(metroCenters[mName], 13, { duration: 0.8 });
       }
     }
@@ -732,9 +733,9 @@
       filterCard.innerHTML = `
         <button class="filter-toggle-btn" id="btn-toggle-filters">
           <span>FILTER LEAGUES</span>
-          <span id="toggle-arrow">▾</span>
+          <span id="toggle-arrow">▴</span>
         </button>
-        <div class="filter-body" id="filter-body-container">
+        <div class="filter-body open" id="filter-body-container">
           <div class="card-title">Filter Leagues</div>
           <div class="filter-actions">
             <button class="btn-action" id="btn-select-all">All</button>
