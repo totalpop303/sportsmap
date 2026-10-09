@@ -395,14 +395,15 @@
           if (lng < minLng) minLng = lng;
           if (lng > maxLng) maxLng = lng;
         });
-        const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
-        const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
+
+        // Tighter padding and higher maxZoom for close-up metro zoom
         map.flyToBounds([
-          [minLat - latPad, minLng - lngPad],
-          [maxLat + latPad, maxLng + lngPad]
-        ], { padding: [30, 30], maxZoom: 12, duration: 0.8 });
+          [minLat, minLng],
+          [maxLat, maxLng]
+        ], { padding: [10, 10], maxZoom: 15, duration: 0.8 });
       } else {
-        map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
+        // Tighter single-venue zoom level
+        map.flyTo(metroCenters[mName], 13, { duration: 0.8 });
       }
     }
 
@@ -480,8 +481,8 @@
             if (lng > maxLng) maxLng = lng;
           });
 
-          const latPad = Math.max((maxLat - minLat) * 0.25, 0.04);
-          const lngPad = Math.max((maxLng - minLng) * 0.25, 0.05);
+          const latPad = Math.max((maxLat - minLat) * 0.15, 0.02);
+          const lngPad = Math.max((maxLng - minLng) * 0.15, 0.02);
 
           const handleMetroClick = function(e) {
             L.DomEvent.stopPropagation(e);
@@ -515,7 +516,6 @@
               opacity: 0.95
             });
 
-            // Smooth autoPan prevents pop-up clipping at the top without altering target zoom
             marker.bindPopup(popupContent, { 
               autoPan: true,
               autoPanPadding: [60, 20]
