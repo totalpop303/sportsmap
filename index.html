@@ -390,9 +390,10 @@
       if (mVenues.length === 0) return;
 
       const isMobile = window.innerWidth <= 600;
-      // Extra top/bottom padding on mobile prevents top/bottom markers from getting blocked by header or filter card
-      const topPad = isMobile ? 70 : 40;
-      const bottomPad = isMobile ? 80 : 40;
+      // Account for top header and bottom-left mobile filter card
+      const topPad = isMobile ? 65 : 40;
+      const bottomPad = isMobile ? 70 : 40;
+      const leftPad = isMobile ? 165 : 20;
 
       if (mVenues.length > 1) {
         let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -408,7 +409,7 @@
           [minLat, minLng],
           [maxLat, maxLng]
         ], { 
-          paddingTopLeft: [20, topPad],
+          paddingTopLeft: [leftPad, topPad],
           paddingBottomRight: [20, bottomPad],
           maxZoom: 15,
           duration: 0.8
@@ -530,7 +531,6 @@
             });
             marker.on('click', handleMetroClick);
           } else {
-            // Anchor badge slightly above the northernmost venue instead of far north padding
             const anchorLatLng = [maxLat, (minLng + maxLng) / 2];
             const anchorPt = map.latLngToLayerPoint(anchorLatLng);
 
@@ -602,8 +602,21 @@
         }
       });
 
-      // Plot Venues
+      // Plot Venues with Mobile Filter Box Area Exclusion
       const placedVenueBoxes = [];
+
+      // If mobile filter card is expanded, reserve bottom-left pixel region from venue tooltips
+      const isMobile = window.innerWidth <= 600;
+      const mapSize = map.getSize();
+      if (isMobile) {
+        placedVenueBoxes.push({
+          x1: 0,
+          y1: mapSize.y - 320,
+          x2: 170,
+          y2: mapSize.y
+        });
+      }
+
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
         const activeTeams = item.activeTeams;
@@ -894,6 +907,7 @@
         const arrow = document.getElementById('toggle-arrow');
         body.classList.toggle('open');
         arrow.textContent = body.classList.contains('open') ? '▴' : '▾';
+        updateMap();
       }
     });
 
