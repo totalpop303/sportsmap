@@ -59,7 +59,7 @@
       box-shadow: 0 0 6px #22c55e;
     }
 
-    /* Dashboard Container & Attribution Offset */
+    /* Attribution Offset */
     .leaflet-bottom.leaflet-left {
       bottom: 28px !important;
       left: 10px !important;
@@ -84,13 +84,13 @@
 
     /* Filter Card */
     .filter-card {
-      min-width: 175px;
+      min-width: 160px;
       max-height: 45vh;
       overflow-y: auto;
     }
 
     .filter-toggle-btn {
-      display: none;
+      display: flex;
       width: 100%;
       background: #0f172a;
       color: #ffffff;
@@ -195,7 +195,7 @@
       white-space: nowrap !important;
     }
 
-    /* Zoomed-In Offset Header Badge */
+    /* Zoomed-In Metro Header Badge */
     .metro-header-box {
       display: inline-flex;
       align-items: center;
@@ -211,11 +211,6 @@
       opacity: 0.95;
       transform: translate(-50%, -50%);
     }
-    .metro-header-box:hover {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1.05);
-      z-index: 9999 !important;
-    }
 
     /* Monochromatic Blue Gradient Tiers */
     .metro-tier-1 { background: linear-gradient(135deg, #e0f2fe, #bae6fd); color: #0c4a6e; border: 1.5px solid #ffffff; }
@@ -224,7 +219,7 @@
     .metro-tier-4 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); color: #ffffff; border: 1.5px solid #ffffff; }
     .metro-tier-5 { background: linear-gradient(135deg, #0f2b5c, #051329); color: #ffffff; border: 1.5px solid #93c5fd; box-shadow: 0 2px 8px rgba(5, 19, 41, 0.6); }
 
-    /* Close-up Collision-Free Venue Tooltip */
+    /* Close-up Venue Tooltip */
     .venue-tooltip {
       background: rgba(255, 255, 255, 0.95);
       border: 1px solid #cbd5e1;
@@ -248,28 +243,8 @@
     .wiki-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #0284c7; text-decoration: none; font-weight: 600; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #e2e8f0; width: 100%; }
     .wiki-link:hover { color: #0369a1; text-decoration: underline; }
 
-    @media (max-width: 600px) {
-      #top-header { font-size: 13px; padding: 6px 14px; }
-      #status-banner { top: 46px; font-size: 9px; }
-      .filter-card {
-        min-width: 140px;
-        padding: 6px 8px;
-        max-height: 50vh;
-      }
-      .filter-toggle-btn {
-        display: flex;
-      }
-      .filter-body {
-        display: none;
-        margin-top: 6px;
-      }
-      .filter-body.open {
-        display: block;
-      }
-      .filter-card .card-title {
-        display: none;
-      }
-    }
+    .filter-body { display: none; margin-top: 6px; }
+    .filter-body.open { display: block; }
   </style>
 </head>
 <body>
@@ -286,40 +261,22 @@
     const SPREADSHEET_ID = "1XHaT57dHhRLtMojDEXhMn8AMScxz5F7WBe1i8y6NIe4";
     const SHEET_GID = "512966518";
 
-    // Tile Providers
     const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     });
 
-    const esriGray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-      maxZoom: 16
-    });
-
     const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      attribution: 'Tiles &copy; Esri',
       maxZoom: 18
     });
 
-    // Initialize Map defaulting to OpenStreetMap
     const map = L.map('map', { 
       zoomControl: true,
       layers: [osmStandard]
     }).setView([39.8283, -98.5795], 4);
 
-    // Basemap Selector Control
-    const baseMaps = {
-      "OpenStreetMap": osmStandard,
-      "Satellite Imagery": esriSatellite,
-      "Light Gray Canvas": esriGray
-    };
-    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
-
     let activeBasemapLayer = osmStandard;
-
-    map.createPane('leaderLinePane');
-    map.getPane('leaderLinePane').style.zIndex = 450;
 
     map.createPane('venuePane');
     map.getPane('venuePane').style.zIndex = 500;
@@ -327,7 +284,6 @@
     map.createPane('metroBadgePane');
     map.getPane('metroBadgePane').style.zIndex = 650;
 
-    const leaderLineLayer = L.layerGroup().addTo(map);
     const metroLayer = L.layerGroup().addTo(map);
     const venueLayer = L.layerGroup().addTo(map);
 
@@ -345,18 +301,6 @@
       if (count >= 5)  return "metro-tier-3";
       if (count >= 3)  return "metro-tier-2";
       return "metro-tier-1";
-    }
-
-    function getTierColor(count) {
-      if (count >= 11) return "#0f2b5c";
-      if (count >= 8)  return "#1d4ed8";
-      if (count >= 5)  return "#0284c7";
-      if (count >= 3)  return "#38bdf8";
-      return "#7dd3fc";
-    }
-
-    function checkOverlap(a, b) {
-      return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2);
     }
 
     function updateBasemapForZoom() {
@@ -389,32 +333,11 @@
       const mVenues = venues.filter(v => v.metro === mName);
       if (mVenues.length === 0) return;
 
-      const isMobile = window.innerWidth <= 600;
-      const topPad = isMobile ? 60 : 40;
-      const bottomPad = isMobile ? 50 : 40;
-      const sidePad = isMobile ? 25 : 30;
-
       if (mVenues.length > 1) {
-        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-        mVenues.forEach(v => {
-          const [lat, lng] = v.coords;
-          if (lat < minLat) minLat = lat;
-          if (lat > maxLat) maxLat = lat;
-          if (lng < minLng) minLng = lng;
-          if (lng > maxLng) maxLng = lng;
-        });
-
-        map.flyToBounds([
-          [minLat, minLng],
-          [maxLat, maxLng]
-        ], { 
-          paddingTopLeft: [sidePad, topPad],
-          paddingBottomRight: [sidePad, bottomPad],
-          maxZoom: 15,
-          duration: 0.8
-        });
+        let bounds = L.latLngBounds(mVenues.map(v => v.coords));
+        map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 12, duration: 0.8 });
       } else {
-        map.flyTo(metroCenters[mName], 13, { duration: 0.8 });
+        map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
       }
     }
 
@@ -428,7 +351,6 @@
       );
 
       refreshInProgress = true;
-      leaderLineLayer.clearLayers();
       metroLayer.clearLayers();
       venueLayer.clearLayers();
 
@@ -462,30 +384,12 @@
         resetToDefaultView();
       }
 
-      const placedMetroLabelBoxes = [];
-
-      // Reserve pixel bounds for all venue markers so metro badge never overlaps a venue
-      if (!isOverview) {
-        activeVenuesList.forEach(item => {
-          const pt = map.latLngToLayerPoint(item.venueObj.coords);
-          placedMetroLabelBoxes.push({
-            x1: pt.x - 20,
-            y1: pt.y - 20,
-            x2: pt.x + 20,
-            y2: pt.y + 20
-          });
-        });
-      }
-
       Object.keys(metroCenters).forEach(mName => {
         const activeTeamList = metroTeamsMap[mName] || [];
-        const activeVenueList = metroVenuesMap[mName] || [];
         const teamCount = activeTeamList.length;
 
         if (teamCount > 0) {
           const tierClass = getTeamTierClass(teamCount);
-          const tierColor = getTierColor(teamCount);
-
           const teamListHtml = activeTeamList.map(t => 
             `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b> <span class="venue-name-sub">(${t.venue})</span></div>`
           ).join('');
@@ -495,15 +399,6 @@
             <div class="popup-subtitle">Total Teams Active: <b>${teamCount}</b></div>
             ${teamListHtml}
           `;
-
-          let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-          activeVenueList.forEach(v => {
-            const [lat, lng] = v.coords;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-          });
 
           let marker;
           const handleMetroClick = function(e) {
@@ -537,93 +432,20 @@
               opacity: 0.95
             });
 
-            marker.bindPopup(popupContent, { 
-              autoPan: true,
-              autoPanPadding: [60, 20]
-            });
-            marker.on('click', handleMetroClick);
-          } else {
-            const anchorLatLng = [maxLat, (minLng + maxLng) / 2];
-            const anchorPt = map.latLngToLayerPoint(anchorLatLng);
-
-            const labelText = `${mName} (${teamCount})`;
-            const estBoxWidth = labelText.length * 7 + 24;
-            const estBoxHeight = 28;
-
-            const offsets = [
-              [0, -45], [-35, -45], [35, -45], [0, 45], [-50, 0], [50, 0]
-            ];
-
-            let chosenOffset = offsets[0];
-            let labelCenterPt = { x: anchorPt.x + chosenOffset[1], y: anchorPt.y + chosenOffset[0] };
-
-            for (let off of offsets) {
-              const candidatePt = { x: anchorPt.x + off[1], y: anchorPt.y + off[0] };
-              const box = {
-                x1: candidatePt.x - estBoxWidth / 2 - 10,
-                y1: candidatePt.y - estBoxHeight / 2 - 10,
-                x2: candidatePt.x + estBoxWidth / 2 + 10,
-                y2: candidatePt.y + estBoxHeight / 2 + 10
-              };
-
-              let collision = false;
-              for (let existing of placedMetroLabelBoxes) {
-                if (checkOverlap(box, existing)) {
-                  collision = true;
-                  break;
-                }
-              }
-
-              if (!collision) {
-                chosenOffset = off;
-                labelCenterPt = candidatePt;
-                placedMetroLabelBoxes.push(box);
-                break;
-              }
-            }
-
-            const finalLatLng = map.layerPointToLatLng(labelCenterPt);
-
-            if (currentZoom < 11 && (chosenOffset[0] !== 0 || chosenOffset[1] !== 0)) {
-              L.polyline([anchorLatLng, finalLatLng], {
-                pane: 'leaderLinePane',
-                color: tierColor,
-                weight: 1.5,
-                dashArray: '2, 3',
-                opacity: 0.8
-              }).addTo(leaderLineLayer);
-            }
-
-            const headerIcon = L.divIcon({
-              className: 'metro-box-icon',
-              html: `<div class="metro-header-box ${tierClass}">${labelText}</div>`,
-              iconSize: null
-            });
-
-            marker = L.marker(finalLatLng, { 
-              icon: headerIcon,
-              pane: 'metroBadgePane'
-            }).addTo(metroLayer);
-
-            marker.bindPopup(popupContent, { 
-              autoPan: true,
-              autoPanPadding: [60, 20]
-            });
+            marker.bindPopup(popupContent, { autoPan: true, autoPanPadding: [60, 20] });
             marker.on('click', handleMetroClick);
           }
         }
       });
 
-      // Plot Venues
-      const placedVenueBoxes = [];
-
+      // Plot Venues with Standard Tooltips
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
         const activeTeams = item.activeTeams;
 
         const marker = L.circleMarker(v.coords, {
           pane: 'venuePane',
-          radius: 5.5,
+          radius: 6,
           fillColor: "#dc2626",
           color: "#ffffff",
           weight: 1.5,
@@ -631,25 +453,15 @@
           fillOpacity: 0.95
         }).addTo(venueLayer);
 
-        const shortTeamSummary = activeTeams.map(t => 
-          t.name.replace(/^(Atlanta|Austin|Baltimore|Boston|Buffalo|Calgary|Charlotte|Chicago|Cincinnati|Cleveland|Columbus|Dallas|Denver|Detroit|Edmonton|Houston|Indiana|Indianapolis|Jacksonville|Kansas City|Las Vegas|Los Angeles|Louisville|Memphis|Miami|Milwaukee|Minnesota|Montreal|Nashville|New England|New Orleans|New York|NJ\/NY|Oklahoma City|Orlando|Ottawa|Philadelphia|Phoenix|Pittsburgh|Portland|Raleigh|North Carolina|Sacramento|Real|Utah|San Antonio|San Diego|San Francisco|Golden State|San Jose|Bay|Seattle|St Louis|Tampa Bay|Toronto|Vancouver|Washington|Winnipeg)\s+/i, '')
-        ).join(', ');
-
-        const teamRows = activeTeams.map(t => 
-          `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`
-        ).join('');
-
-        const wikiUrl = v.wikiUrl && v.wikiUrl.startsWith('http') 
-          ? v.wikiUrl 
-          : `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(v.venue + ' ' + v.city)}`;
+        const shortTeamSummary = activeTeams.map(t => t.name).join(', ');
+        const teamRows = activeTeams.map(t => `<div class="team-item"><span class="league-badge">${t.league}</span><b>${t.name}</b></div>`).join('');
+        const wikiUrl = v.wikiUrl && v.wikiUrl.startsWith('http') ? v.wikiUrl : `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(v.venue + ' ' + v.city)}`;
 
         const popupMarkup = `
           <div class="popup-title">${v.venue}</div>
           <div class="popup-subtitle">${v.city} &bull; Metro: ${v.metro}</div>
           ${teamRows}
-          <a href="${wikiUrl}" target="_blank" rel="noopener noreferrer" class="wiki-link">
-            Wikipedia: ${v.venue} &rarr;
-          </a>
+          <a href="${wikiUrl}" target="_blank" rel="noopener noreferrer" class="wiki-link">Wikipedia: ${v.venue} &rarr;</a>
         `;
 
         marker.bindPopup(popupMarkup, { autoPan: false });
@@ -658,75 +470,20 @@
           L.DomEvent.stopPropagation(e);
           activeVenueKey = v.venue;
           lastZoomedMetro = v.metro;
-          const targetZoom = Math.max(map.getZoom(), 15);
-          map.flyTo(v.coords, targetZoom, { duration: 0.8 });
-          
-          setTimeout(() => {
-            marker.openPopup();
-          }, 850);
+          map.flyTo(v.coords, 14, { duration: 0.8 });
+          setTimeout(() => { marker.openPopup(); }, 850);
         };
 
         marker.on('click', handleVenueZoom);
 
-        if (activeVenueKey === v.venue) {
-          marker.openPopup();
-        }
-
         if (!isOverview) {
-          const pt = map.latLngToLayerPoint(v.coords);
-          const estWidth = Math.max(v.venue.length, shortTeamSummary.length) * 6.8 + 20;
-          const estHeight = 36;
-
-          const candidates = [
-            { dir: 'top',    offset: [0, -10],  box: { x1: pt.x - estWidth / 2 - 6, y1: pt.y - 10 - estHeight - 6, x2: pt.x + estWidth / 2 + 6, y2: pt.y - 10 + 6 } },
-            { dir: 'right',  offset: [12, 0],   box: { x1: pt.x + 12 - 6, y1: pt.y - estHeight / 2 - 6, x2: pt.x + 12 + estWidth + 6, y2: pt.y + estHeight / 2 + 6 } },
-            { dir: 'bottom', offset: [0, 10],   box: { x1: pt.x - estWidth / 2 - 6, y1: pt.y + 10 - 6, x2: pt.x + estWidth / 2 + 6, y2: pt.y + 10 + estHeight + 6 } },
-            { dir: 'left',   offset: [-12, 0],  box: { x1: pt.x - 12 - estWidth - 6, y1: pt.y - estHeight / 2 - 6, x2: pt.x - 12 + 6, y2: pt.y + estHeight / 2 + 6 } },
-            { dir: 'top',    offset: [14, -10], box: { x1: pt.x + 14 - estWidth / 2, y1: pt.y - 10 - estHeight, x2: pt.x + 14 + estWidth / 2, y2: pt.y - 10 } },
-            { dir: 'top',    offset: [-14, -10],box: { x1: pt.x - 14 - estWidth / 2, y1: pt.y - 10 - estHeight, x2: pt.x - 14 + estWidth / 2, y2: pt.y - 10 } },
-            { dir: 'bottom', offset: [14, 10],  box: { x1: pt.x + 14 - estWidth / 2, y1: pt.y + 10, x2: pt.x + 14 + estWidth / 2, y2: pt.y + 10 + estHeight } },
-            { dir: 'bottom', offset: [-14, 10], box: { x1: pt.x - 14 - estWidth / 2, y1: pt.y + 10, x2: pt.x - 14 + estWidth / 2, y2: pt.y + 10 + estHeight } }
-          ];
-
-          let chosen = null;
-          for (let cand of candidates) {
-            let collision = false;
-            for (let existing of placedVenueBoxes) {
-              if (checkOverlap(cand.box, existing)) {
-                collision = true;
-                break;
-              }
-            }
-            if (!collision) {
-              for (let metroBox of placedMetroLabelBoxes) {
-                if (checkOverlap(cand.box, metroBox)) {
-                  collision = true;
-                  break;
-                }
-              }
-            }
-            if (!collision) {
-              chosen = cand;
-              break;
-            }
-          }
-
-          if (chosen) {
-            placedVenueBoxes.push(chosen.box);
-            marker.bindTooltip(`<b>${v.venue}</b><br><span style="color:#64748b; font-size:10px;">${shortTeamSummary}</span>`, {
-              permanent: true,
-              direction: chosen.dir,
-              className: 'venue-tooltip',
-              offset: chosen.offset,
-              interactive: true
-            });
-
-            marker.on('tooltipopen', function(tt) {
-              if (tt.tooltip && tt.tooltip._container) {
-                tt.tooltip._container.addEventListener('click', handleVenueZoom);
-              }
-            });
-          }
+          marker.bindTooltip(`<b>${v.venue}</b><br><span style="color:#64748b; font-size:10px;">${shortTeamSummary}</span>`, {
+            permanent: true,
+            direction: 'top',
+            className: 'venue-tooltip',
+            offset: [0, -8],
+            interactive: true
+          });
         }
       });
 
@@ -737,7 +494,6 @@
     const dashboardControl = L.control({ position: 'bottomleft' });
     dashboardControl.onAdd = function() {
       const container = L.DomUtil.create('div', 'dashboard-container');
-
       const orderedLeagues = ["NFL", "MLB", "NBA", "NHL", "MLS", "NWSL", "WNBA"];
       const defaultChecked = new Set(["NFL", "MLB", "NBA", "NHL"]);
 
@@ -773,28 +529,15 @@
     };
     dashboardControl.addTo(map);
 
-    // Dynamic Google Sheet Handler
     window.handleGvizResponse = function(response) {
-      if (!response || !response.table) {
-        document.getElementById('status-text').textContent = "Error parsing Google Sheet data.";
-        return;
-      }
+      if (!response || !response.table) return;
 
-      const cols = response.table.cols.map((c, idx) => {
-        const name = (c && (c.label || c.id || '')).trim();
-        return name || String.fromCharCode(65 + idx);
-      });
-
+      const cols = response.table.cols.map((c, idx) => (c && c.label) ? c.label.trim() : String.fromCharCode(65 + idx));
       const rawRows = response.table.rows.map(r => {
         let rowObj = {};
         if (r && r.c) {
           r.c.forEach((cell, idx) => {
-            const colName = cols[idx] || String.fromCharCode(65 + idx);
-            if (cell && cell.v !== null && cell.v !== undefined) {
-              rowObj[colName] = cell.v;
-            } else {
-              rowObj[colName] = '';
-            }
+            rowObj[cols[idx] || String.fromCharCode(65 + idx)] = (cell && cell.v !== null) ? cell.v : '';
           });
         }
         return rowObj;
@@ -803,9 +546,7 @@
       function getRowVal(row, possibleKeys) {
         for (let key of possibleKeys) {
           for (let rk in row) {
-            if (rk.trim().toLowerCase() === key.toLowerCase()) {
-              return row[rk];
-            }
+            if (rk.trim().toLowerCase() === key.toLowerCase()) return row[rk];
           }
         }
         return '';
@@ -815,37 +556,24 @@
       const metroSumCoords = {};
 
       rawRows.forEach(row => {
-        const league = String(getRowVal(row, ['League', 'A']) || '').trim();
-        const metro = String(getRowVal(row, ['Metro Area', 'Metro', 'B']) || '').trim();
-        const team = String(getRowVal(row, ['Team Name', 'Team', 'C']) || '').trim();
-        const venueName = String(getRowVal(row, ['Venue Name', 'Venue', 'D']) || '').trim();
-        const venueCity = String(getRowVal(row, ['Venue City', 'City', 'E']) || '').trim();
-        
-        const rawLat = getRowVal(row, ['Latitude', 'Lat', 'F']);
-        const rawLng = getRowVal(row, ['Longitude', 'Lng', 'Lon', 'G']);
-        const lat = typeof rawLat === 'number' ? rawLat : parseFloat(rawLat);
-        const lng = typeof rawLng === 'number' ? rawLng : parseFloat(rawLng);
-
-        const wikiUrl = String(getRowVal(row, ['Venue Wiki', 'Wiki', 'Wikipedia URL', 'Wikipedia', 'Link']) || '').trim();
+        const league = String(getRowVal(row, ['League']) || '').trim();
+        const metro = String(getRowVal(row, ['Metro Area', 'Metro']) || '').trim();
+        const team = String(getRowVal(row, ['Team Name', 'Team']) || '').trim();
+        const venueName = String(getRowVal(row, ['Venue Name', 'Venue']) || '').trim();
+        const venueCity = String(getRowVal(row, ['Venue City', 'City']) || '').trim();
+        const lat = parseFloat(getRowVal(row, ['Latitude', 'Lat']));
+        const lng = parseFloat(getRowVal(row, ['Longitude', 'Lng']));
+        const wikiUrl = String(getRowVal(row, ['Venue Wiki', 'Wiki', 'Wikipedia']) || '').trim();
 
         if (!venueName || isNaN(lat) || isNaN(lng) || !metro) return;
 
         const venueKey = `${venueName}_${lat.toFixed(4)}_${lng.toFixed(4)}`;
         if (!venueMap[venueKey]) {
-          venueMap[venueKey] = {
-            venue: venueName,
-            city: venueCity,
-            metro: metro,
-            coords: [lat, lng],
-            wikiUrl: wikiUrl,
-            teams: []
-          };
+          venueMap[venueKey] = { venue: venueName, city: venueCity, metro: metro, coords: [lat, lng], wikiUrl: wikiUrl, teams: [] };
         }
         venueMap[venueKey].teams.push({ league: league, name: team });
 
-        if (!metroSumCoords[metro]) {
-          metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
-        }
+        if (!metroSumCoords[metro]) metroSumCoords[metro] = { sumLat: 0, sumLng: 0, count: 0 };
         metroSumCoords[metro].sumLat += lat;
         metroSumCoords[metro].sumLng += lng;
         metroSumCoords[metro].count += 1;
@@ -854,17 +582,12 @@
       venues = Object.values(venueMap);
       metroCenters = {};
       Object.keys(metroSumCoords).forEach(m => {
-        metroCenters[m] = [
-          metroSumCoords[m].sumLat / metroSumCoords[m].count,
-          metroSumCoords[m].sumLng / metroSumCoords[m].count
-        ];
+        metroCenters[m] = [metroSumCoords[m].sumLat / metroSumCoords[m].count, metroSumCoords[m].sumLng / metroSumCoords[m].count];
       });
 
       const banner = document.getElementById('status-banner');
       document.getElementById('status-text').textContent = `Live Synced (${venues.length} venues loaded)`;
-      setTimeout(() => {
-        banner.style.opacity = '0';
-      }, 2500);
+      setTimeout(() => { banner.style.opacity = '0'; }, 2500);
 
       updateMap();
     };
@@ -873,17 +596,11 @@
       const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse&gid=${SHEET_GID}`;
       const script = document.createElement('script');
       script.src = gvizUrl;
-      script.onerror = function() {
-        document.getElementById('status-text').textContent = "Failed to reach Google Sheet.";
-      };
       document.body.appendChild(script);
     }
 
-    // Event Listeners
     document.addEventListener('change', function(e) {
-      if (e.target && e.target.classList.contains('league-checkbox')) {
-        updateMap();
-      }
+      if (e.target && e.target.classList.contains('league-checkbox')) updateMap();
     });
 
     document.addEventListener('click', function(e) {
@@ -893,9 +610,7 @@
         updateMap();
       } else if (e.target.id === 'btn-big-four') {
         const bigFour = new Set(['NFL', 'MLB', 'NBA', 'NHL']);
-        document.querySelectorAll('.league-checkbox').forEach(cb => {
-          cb.checked = bigFour.has(cb.value);
-        });
+        document.querySelectorAll('.league-checkbox').forEach(cb => { cb.checked = bigFour.has(cb.value); });
         updateMap();
       } else if (e.target.id === 'btn-select-none') {
         document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = false);
@@ -907,7 +622,6 @@
         const arrow = document.getElementById('toggle-arrow');
         body.classList.toggle('open');
         arrow.textContent = body.classList.contains('open') ? '▴' : '▾';
-        updateMap();
       }
     });
 
@@ -916,18 +630,11 @@
         if (activeVenueKey && lastZoomedMetro) {
           activeVenueKey = null;
           zoomToMetroArea(lastZoomedMetro);
-        } else {
-          activeMetro = null;
-          activeVenueKey = null;
         }
       }
     });
 
     map.on('zoomend', updateMap);
-    map.on('moveend', () => {
-      if (map.getZoom() > 6) updateMap();
-    });
-
     loadGoogleSheetData();
   </script>
 </body>
