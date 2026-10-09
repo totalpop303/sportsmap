@@ -103,7 +103,6 @@
       text-align: left;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 4px;
     }
 
     .card-title {
@@ -253,15 +252,16 @@
       #top-header { font-size: 13px; padding: 6px 14px; }
       #status-banner { top: 46px; font-size: 9px; }
       .filter-card {
-        min-width: 150px;
-        padding: 8px 10px;
-        max-height: 55vh;
+        min-width: 140px;
+        padding: 6px 8px;
+        max-height: 50vh;
       }
       .filter-toggle-btn {
         display: flex;
       }
       .filter-body {
         display: none;
+        margin-top: 6px;
       }
       .filter-body.open {
         display: block;
@@ -390,10 +390,9 @@
       if (mVenues.length === 0) return;
 
       const isMobile = window.innerWidth <= 600;
-      // Account for top header and bottom-left mobile filter card
-      const topPad = isMobile ? 65 : 40;
-      const bottomPad = isMobile ? 70 : 40;
-      const leftPad = isMobile ? 165 : 20;
+      const topPad = isMobile ? 60 : 40;
+      const bottomPad = isMobile ? 50 : 40;
+      const sidePad = isMobile ? 25 : 30;
 
       if (mVenues.length > 1) {
         let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -409,8 +408,8 @@
           [minLat, minLng],
           [maxLat, maxLng]
         ], { 
-          paddingTopLeft: [leftPad, topPad],
-          paddingBottomRight: [20, bottomPad],
+          paddingTopLeft: [sidePad, topPad],
+          paddingBottomRight: [sidePad, bottomPad],
           maxZoom: 15,
           duration: 0.8
         });
@@ -464,6 +463,19 @@
       }
 
       const placedMetroLabelBoxes = [];
+
+      // Reserve pixel bounds for all venue markers so metro badge never overlaps a venue
+      if (!isOverview) {
+        activeVenuesList.forEach(item => {
+          const pt = map.latLngToLayerPoint(item.venueObj.coords);
+          placedMetroLabelBoxes.push({
+            x1: pt.x - 20,
+            y1: pt.y - 20,
+            x2: pt.x + 20,
+            y2: pt.y + 20
+          });
+        });
+      }
 
       Object.keys(metroCenters).forEach(mName => {
         const activeTeamList = metroTeamsMap[mName] || [];
@@ -539,7 +551,7 @@
             const estBoxHeight = 28;
 
             const offsets = [
-              [0, -20], [-24, -20], [24, -20], [0, 20], [0, -40]
+              [0, -45], [-35, -45], [35, -45], [0, 45], [-50, 0], [50, 0]
             ];
 
             let chosenOffset = offsets[0];
@@ -548,10 +560,10 @@
             for (let off of offsets) {
               const candidatePt = { x: anchorPt.x + off[1], y: anchorPt.y + off[0] };
               const box = {
-                x1: candidatePt.x - estBoxWidth / 2 - 12,
-                y1: candidatePt.y - estBoxHeight / 2 - 12,
-                x2: candidatePt.x + estBoxWidth / 2 + 12,
-                y2: candidatePt.y + estBoxHeight / 2 + 12
+                x1: candidatePt.x - estBoxWidth / 2 - 10,
+                y1: candidatePt.y - estBoxHeight / 2 - 10,
+                x2: candidatePt.x + estBoxWidth / 2 + 10,
+                y2: candidatePt.y + estBoxHeight / 2 + 10
               };
 
               let collision = false;
@@ -602,20 +614,8 @@
         }
       });
 
-      // Plot Venues with Mobile Filter Box Area Exclusion
+      // Plot Venues
       const placedVenueBoxes = [];
-
-      // If mobile filter card is expanded, reserve bottom-left pixel region from venue tooltips
-      const isMobile = window.innerWidth <= 600;
-      const mapSize = map.getSize();
-      if (isMobile) {
-        placedVenueBoxes.push({
-          x1: 0,
-          y1: mapSize.y - 320,
-          x2: 170,
-          y2: mapSize.y
-        });
-      }
 
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
@@ -753,9 +753,9 @@
       filterCard.innerHTML = `
         <button class="filter-toggle-btn" id="btn-toggle-filters">
           <span>FILTER LEAGUES</span>
-          <span id="toggle-arrow">▴</span>
+          <span id="toggle-arrow">▾</span>
         </button>
-        <div class="filter-body open" id="filter-body-container">
+        <div class="filter-body" id="filter-body-container">
           <div class="card-title">Filter Leagues</div>
           <div class="filter-actions">
             <button class="btn-action" id="btn-select-all">All</button>
