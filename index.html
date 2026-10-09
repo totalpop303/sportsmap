@@ -320,7 +320,14 @@
       activeVenueKey = null;
       activeMetro = null;
       lastZoomedMetro = null;
-      const activeCoords = venues.map(v => v.coords);
+      
+      const selectedLeagues = new Set(
+        Array.from(document.querySelectorAll('.league-checkbox:checked')).map(cb => cb.value)
+      );
+      const activeCoords = venues
+        .filter(v => v.teams.some(t => selectedLeagues.has(t.league)))
+        .map(v => v.coords);
+
       if (activeCoords.length > 0) {
         const bounds = L.latLngBounds(activeCoords);
         map.fitBounds(bounds, { padding: [30, 30] });
@@ -330,14 +337,22 @@
     }
 
     function zoomToMetroArea(mName) {
-      const mVenues = venues.filter(v => v.metro === mName);
-      if (mVenues.length === 0) return;
+      const selectedLeagues = new Set(
+        Array.from(document.querySelectorAll('.league-checkbox:checked')).map(cb => cb.value)
+      );
 
-      if (mVenues.length > 1) {
-        let bounds = L.latLngBounds(mVenues.map(v => v.coords));
-        map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 12, duration: 0.8 });
+      // Filter venues down strictly to those with active teams under the selected leagues
+      const activeMetroVenues = venues.filter(v => 
+        v.metro === mName && v.teams.some(t => selectedLeagues.has(t.league))
+      );
+
+      if (activeMetroVenues.length === 0) return;
+
+      if (activeMetroVenues.length > 1) {
+        let bounds = L.latLngBounds(activeMetroVenues.map(v => v.coords));
+        map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 14, duration: 0.8 });
       } else {
-        map.flyTo(metroCenters[mName], 11, { duration: 0.8 });
+        map.flyTo(activeMetroVenues[0].coords, 14, { duration: 0.8 });
       }
     }
 
@@ -470,7 +485,7 @@
           L.DomEvent.stopPropagation(e);
           activeVenueKey = v.venue;
           lastZoomedMetro = v.metro;
-          map.flyTo(v.coords, 14, { duration: 0.8 });
+          map.flyTo(v.coords, 15, { duration: 0.8 });
           setTimeout(() => { marker.openPopup(); }, 850);
         };
 
