@@ -239,7 +239,7 @@
     .metro-tier-4 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); color: #ffffff; border: 1.5px solid #ffffff; }
     .metro-tier-5 { background: linear-gradient(135deg, #0f2b5c, #051329); color: #ffffff; border: 1.5px solid #93c5fd; box-shadow: 0 2px 8px rgba(5, 19, 41, 0.6); }
 
-    /* Close-up Venue Tooltip */
+    /* Standard Reliable Venue Tooltip */
     .venue-tooltip {
       background: rgba(255, 255, 255, 0.95);
       border: 1px solid #cbd5e1;
@@ -396,6 +396,14 @@
       }
     }
 
+    function handleFilterChange() {
+      updateMap();
+      // Only re-zoom dynamically when a filter button/checkbox is explicitly toggled
+      if (lastZoomedMetro) {
+        zoomToMetroArea(lastZoomedMetro);
+      }
+    }
+
     function updateMap() {
       if (venues.length === 0) return;
 
@@ -494,7 +502,7 @@
         }
       });
 
-      // Plot Venues
+      // Plot Venues with Standard 'top' placement (prevents side-by-side auto overlaps)
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
         const activeTeams = item.activeTeams;
@@ -536,17 +544,13 @@
         if (!isOverview) {
           marker.bindTooltip(`<b>${v.venue}</b><br><span style="color:#64748b; font-size:10px;">${shortTeamSummary}</span>`, {
             permanent: true,
-            direction: 'auto',
+            direction: 'top',
             className: 'venue-tooltip',
-            offset: [0, -6],
+            offset: [0, -8],
             interactive: true
           });
         }
       });
-
-      if (!isOverview && lastZoomedMetro && !activeVenueKey) {
-        zoomToMetroArea(lastZoomedMetro);
-      }
 
       refreshInProgress = false;
     }
@@ -658,21 +662,23 @@
     }
 
     document.addEventListener('change', function(e) {
-      if (e.target && e.target.classList.contains('league-checkbox')) updateMap();
+      if (e.target && e.target.classList.contains('league-checkbox')) {
+        handleFilterChange();
+      }
     });
 
     document.addEventListener('click', function(e) {
       if (!e.target) return;
       if (e.target.id === 'btn-select-all') {
         document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = true);
-        updateMap();
+        handleFilterChange();
       } else if (e.target.id === 'btn-big-four') {
         const bigFour = new Set(['NFL', 'MLB', 'NBA', 'NHL']);
         document.querySelectorAll('.league-checkbox').forEach(cb => { cb.checked = bigFour.has(cb.value); });
-        updateMap();
+        handleFilterChange();
       } else if (e.target.id === 'btn-select-none') {
         document.querySelectorAll('.league-checkbox').forEach(cb => cb.checked = false);
-        updateMap();
+        handleFilterChange();
       } else if (e.target.id === 'btn-reset-view') {
         resetToDefaultView();
       }
