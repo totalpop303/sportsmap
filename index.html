@@ -389,6 +389,11 @@
       const mVenues = venues.filter(v => v.metro === mName);
       if (mVenues.length === 0) return;
 
+      const isMobile = window.innerWidth <= 600;
+      // Extra top/bottom padding on mobile prevents top/bottom markers from getting blocked by header or filter card
+      const topPad = isMobile ? 70 : 40;
+      const bottomPad = isMobile ? 80 : 40;
+
       if (mVenues.length > 1) {
         let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
         mVenues.forEach(v => {
@@ -402,7 +407,12 @@
         map.flyToBounds([
           [minLat, minLng],
           [maxLat, maxLng]
-        ], { padding: [10, 10], maxZoom: 15, duration: 0.8 });
+        ], { 
+          paddingTopLeft: [20, topPad],
+          paddingBottomRight: [20, bottomPad],
+          maxZoom: 15,
+          duration: 0.8
+        });
       } else {
         map.flyTo(metroCenters[mName], 13, { duration: 0.8 });
       }
@@ -482,9 +492,6 @@
             if (lng > maxLng) maxLng = lng;
           });
 
-          const latPad = Math.max((maxLat - minLat) * 0.15, 0.02);
-          const lngPad = Math.max((maxLng - minLng) * 0.15, 0.02);
-
           let marker;
           const handleMetroClick = function(e) {
             L.DomEvent.stopPropagation(e);
@@ -523,7 +530,8 @@
             });
             marker.on('click', handleMetroClick);
           } else {
-            const anchorLatLng = [maxLat + latPad, (minLng + maxLng) / 2];
+            // Anchor badge slightly above the northernmost venue instead of far north padding
+            const anchorLatLng = [maxLat, (minLng + maxLng) / 2];
             const anchorPt = map.latLngToLayerPoint(anchorLatLng);
 
             const labelText = `${mName} (${teamCount})`;
@@ -531,8 +539,7 @@
             const estBoxHeight = 28;
 
             const offsets = [
-              [0, 0], [-24, 0], [24, 0], [0, 35], [0, -35],
-              [-30, 40], [-30, -40], [30, 40], [30, -40]
+              [0, -20], [-24, -20], [24, -20], [0, 20], [0, -40]
             ];
 
             let chosenOffset = offsets[0];
