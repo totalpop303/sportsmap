@@ -311,6 +311,7 @@
     let lastZoomedMetro = null;
     let refreshInProgress = false;
     let initialFitDone = false;
+    let isZoomingToVenue = false;
 
     function getTeamTierClass(count) {
       if (count >= 11) return "metro-tier-5";
@@ -398,14 +399,13 @@
 
     function handleFilterChange() {
       updateMap();
-      // Only re-zoom dynamically when a filter button/checkbox is explicitly toggled
       if (lastZoomedMetro) {
         zoomToMetroArea(lastZoomedMetro);
       }
     }
 
     function updateMap() {
-      if (venues.length === 0) return;
+      if (venues.length === 0 || isZoomingToVenue) return;
 
       updateBasemapForZoom();
       updateFilterButtonState();
@@ -502,7 +502,7 @@
         }
       });
 
-      // Plot Venues with Standard 'top' placement (prevents side-by-side auto overlaps)
+      // Plot Venues
       activeVenuesList.forEach(item => {
         const v = item.venueObj;
         const activeTeams = item.activeTeams;
@@ -535,8 +535,14 @@
           L.DomEvent.stopPropagation(e);
           activeVenueKey = v.venue;
           lastZoomedMetro = v.metro;
+          isZoomingToVenue = true;
+          
           map.flyTo(v.coords, 15, { duration: 0.8 });
-          setTimeout(() => { marker.openPopup(); }, 350);
+          marker.openPopup();
+
+          setTimeout(() => {
+            isZoomingToVenue = false;
+          }, 900);
         };
 
         marker.on('click', handleVenueClick);
